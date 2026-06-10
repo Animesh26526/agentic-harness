@@ -1,0 +1,513 @@
+[
+  {
+    "query_id": "json_01",
+    "category": "structured_json",
+    "input": "Generate a customer profile for a client named Alice who is 30 years old and lives in Boston. Output MUST be valid JSON with keys 'name' (string), 'age' (integer), and 'city' (string).",
+    "expected_output": "{\"name\": \"Alice\", \"age\": 30, \"city\": \"Boston\"}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "name",
+        "age",
+        "city"
+      ],
+      "field_types": {
+        "name": "string",
+        "age": "integer",
+        "city": "string"
+      }
+    }
+  },
+  {
+    "query_id": "const_01",
+    "category": "constraint_following",
+    "input": "Write a short product description of a smartphone. Do NOT use the word 'expensive', 'phone', 'smart', 'device', 'mobile', or 'handset'. Keep the response under 100 characters.",
+    "expected_output": "A sleek, feature-packed gear offering premium performance and an advanced camera system.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "expensive",
+        "phone",
+        "smart",
+        "device",
+        "mobile",
+        "handset"
+      ],
+      "max_length": 100
+    }
+  },
+  {
+    "query_id": "qa_01",
+    "category": "factual_qa",
+    "input": "Who developed the Python programming language?",
+    "expected_output": "Python was created by Guido van Rossum.",
+    "evaluation_config": {
+      "reference_text": "Python was created by Guido van Rossum and first released in 1991."
+    }
+  },
+  {
+    "query_id": "math_01",
+    "category": "extraction_math",
+    "input": "What is 15 multiplied by 8?",
+    "expected_output": "120",
+    "evaluation_config": {
+      "reference_text": "15 * 8 = 120"
+    }
+  },
+  {
+    "query_id": "json_02",
+    "category": "structured_json",
+    "input": "Create a catalog entry for a book titled 'Introduction to AI' by author 'Dr. Smith' published in 2025. Return JSON with 'title', 'author', and 'year'.",
+    "expected_output": "{\"title\": \"Introduction to AI\", \"author\": \"Dr. Smith\", \"year\": 2025}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "title",
+        "author",
+        "year"
+      ],
+      "field_types": {
+        "title": "string",
+        "author": "string",
+        "year": "integer"
+      }
+    }
+  },
+  {
+    "query_id": "const_02",
+    "category": "constraint_following",
+    "input": "Explain what photosynthesis is. Do NOT use the word 'green', 'light', 'plant', 'sun', 'leaves', or 'energy'. Keep the response under 200 characters.",
+    "expected_output": "Photosynthesis is the process where flora convert solar rays, carbon dioxide, and water into chemical sustenance.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "green",
+        "light",
+        "plant",
+        "sun",
+        "leaves",
+        "energy"
+      ],
+      "max_length": 200
+    }
+  },
+  {
+    "query_id": "qa_02",
+    "category": "factual_qa",
+    "input": "What is the capital of France?",
+    "expected_output": "The capital of France is Paris.",
+    "evaluation_config": {
+      "reference_text": "Paris is the capital and most populous city of France."
+    }
+  },
+  {
+    "query_id": "math_02",
+    "category": "extraction_math",
+    "input": "Extract the population of Tokyo from this text: 'The city of Tokyo has a population of 14 million people.'",
+    "expected_output": "14 million",
+    "evaluation_config": {
+      "reference_text": "14 million"
+    }
+  },
+  {
+    "query_id": "json_03",
+    "category": "structured_json",
+    "input": "Format a server status report. Return a JSON with 'status' (string, value 'online') and 'uptime' (integer, value 3600).",
+    "expected_output": "{\"status\": \"online\", \"uptime\": 3600}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "status",
+        "uptime"
+      ],
+      "field_types": {
+        "status": "string",
+        "uptime": "integer"
+      }
+    }
+  },
+  {
+    "query_id": "const_03",
+    "category": "constraint_following",
+    "input": "Confirm user subscription status. Do NOT use the word 'invalid', 'active', 'confirmed', 'yes', 'subscription', or 'status'. Keep the response under 50 characters.",
+    "expected_output": "Current account verified: OK.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "invalid",
+        "active",
+        "confirmed",
+        "yes",
+        "subscription",
+        "status"
+      ],
+      "max_length": 50
+    }
+  },
+  {
+    "query_id": "qa_03",
+    "category": "factual_qa",
+    "input": "What is the boiling point of water in Celsius?",
+    "expected_output": "The boiling point of water is 100 degrees Celsius at standard atmospheric pressure.",
+    "evaluation_config": {
+      "reference_text": "Under standard atmospheric conditions, water boils at 100 \u00b0C."
+    }
+  },
+  {
+    "query_id": "math_03",
+    "category": "extraction_math",
+    "input": "Solve the equation: 2x + 5 = 15. What is the value of x?",
+    "expected_output": "5",
+    "evaluation_config": {
+      "reference_text": "x = 5"
+    }
+  },
+  {
+    "query_id": "json_04",
+    "category": "structured_json",
+    "input": "Generate order details for order ID 98765, containing product 'Laptop' and quantity 2. Output MUST be JSON.",
+    "expected_output": "{\"order_id\": 98765, \"product\": \"Laptop\", \"quantity\": 2}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "order_id",
+        "product",
+        "quantity"
+      ],
+      "field_types": {
+        "order_id": "integer",
+        "product": "string",
+        "quantity": "integer"
+      }
+    }
+  },
+  {
+    "query_id": "const_04",
+    "category": "constraint_following",
+    "input": "Describe a modern city skyline. Do NOT use the word 'modern', 'city', 'building', 'tower', 'sky', or 'urban'. Keep the description under 120 characters.",
+    "expected_output": "Towering glass structures pierce the clouds above a bustling landscape.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "modern",
+        "city",
+        "building",
+        "tower",
+        "sky",
+        "urban"
+      ],
+      "max_length": 120
+    }
+  },
+  {
+    "query_id": "qa_04",
+    "category": "factual_qa",
+    "input": "What is the capital of Japan?",
+    "expected_output": "The capital of Japan is Tokyo.",
+    "evaluation_config": {
+      "reference_text": "Tokyo is the capital of Japan."
+    }
+  },
+  {
+    "query_id": "math_04",
+    "category": "extraction_math",
+    "input": "What is 50 divided by 5?",
+    "expected_output": "10",
+    "evaluation_config": {
+      "reference_text": "50 / 5 = 10"
+    }
+  },
+  {
+    "query_id": "json_05",
+    "category": "structured_json",
+    "input": "Format coordinate points with 'x' coordinate as 12 and 'y' coordinate as -5. Output MUST be JSON.",
+    "expected_output": "{\"x\": 12, \"y\": -5}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "x",
+        "y"
+      ],
+      "field_types": {
+        "x": "integer",
+        "y": "integer"
+      }
+    }
+  },
+  {
+    "query_id": "const_05",
+    "category": "constraint_following",
+    "input": "Describe a house cat. Do NOT use the word 'feline', 'cat', 'pet', 'animal', 'domestic', or 'meow'. Keep the description under 100 characters.",
+    "expected_output": "A soft companion that loves sleeping in sunny spots and chasing toys.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "feline",
+        "cat",
+        "pet",
+        "animal",
+        "domestic",
+        "meow"
+      ],
+      "max_length": 100
+    }
+  },
+  {
+    "query_id": "qa_05",
+    "category": "factual_qa",
+    "input": "Who invented the telephone?",
+    "expected_output": "Alexander Graham Bell invented the telephone.",
+    "evaluation_config": {
+      "reference_text": "Alexander Graham Bell invented the telephone."
+    }
+  },
+  {
+    "query_id": "math_05",
+    "category": "extraction_math",
+    "input": "Extract the age of the Eiffel Tower from this text: 'Built in 1889, the Eiffel Tower is 137 years old.'",
+    "expected_output": "137",
+    "evaluation_config": {
+      "reference_text": "137"
+    }
+  },
+  {
+    "query_id": "json_06",
+    "category": "structured_json",
+    "input": "Create flight information for flight 'AA123' departing from 'JFK' to 'LAX'. Return JSON.",
+    "expected_output": "{\"flight_number\": \"AA123\", \"departure\": \"JFK\", \"destination\": \"LAX\"}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "flight_number",
+        "departure",
+        "destination"
+      ],
+      "field_types": {
+        "flight_number": "string",
+        "departure": "string",
+        "destination": "string"
+      }
+    }
+  },
+  {
+    "query_id": "const_06",
+    "category": "constraint_following",
+    "input": "Answer how gravity works. Do NOT use the word 'fall'. Keep it under 150 characters.",
+    "expected_output": "Gravity is the attractive force between objects with mass, pulling them toward each other.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "fall"
+      ],
+      "max_length": 150
+    }
+  },
+  {
+    "query_id": "qa_06",
+    "category": "factual_qa",
+    "input": "Who was the first person to walk on the moon?",
+    "expected_output": "Neil Armstrong was the first person to walk on the moon in 1969.",
+    "evaluation_config": {
+      "reference_text": "Neil Armstrong was the first person to walk on the moon in 1969."
+    }
+  },
+  {
+    "query_id": "math_06",
+    "category": "extraction_math",
+    "input": "What is 12 plus 19?",
+    "expected_output": "31",
+    "evaluation_config": {
+      "reference_text": "12 + 19 = 31"
+    }
+  },
+  {
+    "query_id": "json_07",
+    "category": "structured_json",
+    "input": "Format recipe information for 'Pancakes' serving 4 people with prep_time of 15 minutes. Return JSON.",
+    "expected_output": "{\"recipe_name\": \"Pancakes\", \"servings\": 4, \"prep_time\": 15}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "recipe_name",
+        "servings",
+        "prep_time"
+      ],
+      "field_types": {
+        "recipe_name": "string",
+        "servings": "integer",
+        "prep_time": "integer"
+      }
+    }
+  },
+  {
+    "query_id": "const_07",
+    "category": "constraint_following",
+    "input": "Define software. Do NOT use the word 'program'. Keep the description under 200 characters.",
+    "expected_output": "Software is a collection of instructions and data telling a computer how to execute tasks.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "program"
+      ],
+      "max_length": 200
+    }
+  },
+  {
+    "query_id": "qa_07",
+    "category": "factual_qa",
+    "input": "Who wrote the play Romeo and Juliet?",
+    "expected_output": "William Shakespeare wrote Romeo and Juliet.",
+    "evaluation_config": {
+      "reference_text": "Romeo and Juliet is a tragedy written by William Shakespeare."
+    }
+  },
+  {
+    "query_id": "math_07",
+    "category": "extraction_math",
+    "input": "Extract the price from this text: 'The price of the ticket is 45 dollars.'",
+    "expected_output": "45",
+    "evaluation_config": {
+      "reference_text": "45"
+    }
+  },
+  {
+    "query_id": "json_08",
+    "category": "structured_json",
+    "input": "Create student grade record for student ID 1045 in Math with grade 95. Return JSON.",
+    "expected_output": "{\"student_id\": 1045, \"subject\": \"Math\", \"grade\": 95}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "student_id",
+        "subject",
+        "grade"
+      ],
+      "field_types": {
+        "student_id": "integer",
+        "subject": "string",
+        "grade": "integer"
+      }
+    }
+  },
+  {
+    "query_id": "const_08",
+    "category": "constraint_following",
+    "input": "Give quick steps for making tea. Do NOT use the word 'boil'. Keep it under 180 characters.",
+    "expected_output": "Heat fresh water, steep a tea bag for three minutes, then add sugar or milk to taste.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "boil"
+      ],
+      "max_length": 180
+    }
+  },
+  {
+    "query_id": "qa_08",
+    "category": "factual_qa",
+    "input": "Which is the largest ocean on Earth?",
+    "expected_output": "The Pacific Ocean is the largest ocean.",
+    "evaluation_config": {
+      "reference_text": "The Pacific Ocean is the largest and deepest of Earth's oceanic divisions."
+    }
+  },
+  {
+    "query_id": "math_08",
+    "category": "extraction_math",
+    "input": "Solve for x: x + 4 = 12.",
+    "expected_output": "8",
+    "evaluation_config": {
+      "reference_text": "x = 8"
+    }
+  },
+  {
+    "query_id": "json_09",
+    "category": "structured_json",
+    "input": "Format movie details for 'Inception' directed by 'Christopher Nolan' released in 2010. Return JSON.",
+    "expected_output": "{\"title\": \"Inception\", \"director\": \"Christopher Nolan\", \"release_year\": 2010}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "title",
+        "director",
+        "release_year"
+      ],
+      "field_types": {
+        "title": "string",
+        "director": "string",
+        "release_year": "integer"
+      }
+    }
+  },
+  {
+    "query_id": "const_09",
+    "category": "constraint_following",
+    "input": "Write a sentence about speed. Do NOT use the word 'fast'. Keep it under 80 characters.",
+    "expected_output": "The rapid runner quickly crossed the finish line ahead of the competitors.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "fast"
+      ],
+      "max_length": 80
+    }
+  },
+  {
+    "query_id": "qa_09",
+    "category": "factual_qa",
+    "input": "How was gravity discovered?",
+    "expected_output": "Sir Isaac Newton discovered gravity.",
+    "evaluation_config": {
+      "reference_text": "Sir Isaac Newton discovered gravity when he saw a falling apple."
+    }
+  },
+  {
+    "query_id": "math_09",
+    "category": "extraction_math",
+    "input": "What is 9 squared?",
+    "expected_output": "81",
+    "evaluation_config": {
+      "reference_text": "9^2 = 81"
+    }
+  },
+  {
+    "query_id": "json_10",
+    "category": "structured_json",
+    "input": "Format a weather report for location 'Seattle' showing temperature 15 and humidity 80. Return JSON.",
+    "expected_output": "{\"location\": \"Seattle\", \"temperature\": 15, \"humidity\": 80}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "location",
+        "temperature",
+        "humidity"
+      ],
+      "field_types": {
+        "location": "string",
+        "temperature": "integer",
+        "humidity": "integer"
+      }
+    }
+  },
+  {
+    "query_id": "const_10",
+    "category": "constraint_following",
+    "input": "Describe water. Do NOT use the word 'liquid'. Keep it under 90 characters.",
+    "expected_output": "A transparent substance vital for all known forms of life on Earth.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "liquid"
+      ],
+      "max_length": 90
+    }
+  },
+  {
+    "query_id": "qa_10",
+    "category": "factual_qa",
+    "input": "What is the official currency of the European Union?",
+    "expected_output": "The euro is the official currency of the European Union.",
+    "evaluation_config": {
+      "reference_text": "The euro is the official currency of the European Union."
+    }
+  },
+  {
+    "query_id": "math_10",
+    "category": "extraction_math",
+    "input": "Extract the year from this text: 'The first modern Olympic Games were held in Athens in 1896.'",
+    "expected_output": "1896",
+    "evaluation_config": {
+      "reference_text": "1896"
+    }
+  }
+]
