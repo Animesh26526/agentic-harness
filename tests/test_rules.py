@@ -82,7 +82,7 @@ def test_length_limit_violations():
     
     assert result.passed is False
     assert result.score == 0.70
-    assert any("Maximum allowed is 20" in issue for issue in result.issues)
+    assert any("Maximum length: 20" in issue for issue in result.issues)
 
 def test_markdown_wrapped_json():
     """Confirms that JSON wrapped inside Markdown formatting (```json ... ```) is cleaned and validated."""

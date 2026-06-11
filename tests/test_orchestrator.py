@@ -133,7 +133,7 @@ def test_harness_on_retry_and_pass_path(mock_agent_class, temp_db):
     assert mock_agent.generate.call_count == 2
     second_call_prompt = mock_agent.generate.call_args_list[1][0][0]
     assert "Your previous response failed validation." in second_call_prompt
-    assert "Issues:" in second_call_prompt
+    assert "Priority 1: Objective constraints" in second_call_prompt
     assert "This is not JSON" in second_call_prompt
 
 @patch('harness.orchestrator.GeminiAgent')

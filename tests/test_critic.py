@@ -354,3 +354,27 @@ def test_critic_fifa_hallucination_override(mock_agent_class):
     assert result.score == 0.85
     assert result.passed is True
 
+
+@patch('harness.evaluators.critic.GeminiAgent')
+def test_critic_constraint_awareness(mock_agent_class):
+    """Test that CriticEvaluator builds prompt with ACTIVE OBJECTIVE CONSTRAINTS when provided."""
+    mock_agent = mock_agent_class.return_value
+    mock_agent.generate.return_value = '{"score": 1.0, "issues": [], "suggestions": []}'
+    
+    evaluator = CriticEvaluator()
+    evaluator.evaluate(
+        generated_text="test response",
+        reference_text="ref text",
+        user_query="query",
+        max_length=50,
+        forbidden_keywords=["bad", "words"],
+        validate_json=True
+    )
+    
+    prompt = mock_agent.generate.call_args[0][0]
+    assert "ACTIVE OBJECTIVE CONSTRAINTS:" in prompt
+    assert "Maximum Length: 50 characters" in prompt
+    assert "Forbidden keywords: bad, words" in prompt
+    assert "MUST be valid JSON format" in prompt
+    assert "focus ONLY on JSON structure repair" in prompt
+

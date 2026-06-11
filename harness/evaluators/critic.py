@@ -204,7 +204,20 @@ def is_contradictory_violation(violation: str, response: str) -> bool:
         return False
         
     # Check if all keywords are present in the response
-    return all(kw in resp_lower for kw in keywords)
+    if all(kw in resp_lower for kw in keywords):
+        return True
+        
+    # Semantic fallback check for paraphrased concepts
+    from harness.evaluators.semantic import SemanticEvaluator
+    evaluator = SemanticEvaluator() # already warmed up
+    sentences = re.split(r'(?<=[.!?]) +|\n+', response)
+    for sentence in sentences:
+        if sentence.strip():
+            res = evaluator.evaluate(sentence, target)
+            if res.score >= 0.70:
+                return True
+                
+    return False
 
 
 def get_challenge_discard_filter(user_query: str, reference_text: str, response: str):
@@ -356,12 +369,40 @@ class CriticEvaluator(BaseEvaluator):
                 metadata={"raw_response": ""}
             )
 
+        max_length = kwargs.get("max_length")
+        min_length = kwargs.get("min_length")
+        validate_json = kwargs.get("validate_json")
+        required_fields = kwargs.get("required_fields")
+        forbidden_keywords = kwargs.get("forbidden_keywords")
+
+        constraint_str = ""
+        if any([max_length, min_length, validate_json, required_fields, forbidden_keywords]):
+            constraint_str = "ACTIVE OBJECTIVE CONSTRAINTS:\n"
+            if max_length:
+                constraint_str += f"- Maximum Length: {max_length} characters\n"
+            if min_length:
+                constraint_str += f"- Minimum Length: {min_length} characters\n"
+            if validate_json:
+                constraint_str += "- MUST be valid JSON format\n"
+            if required_fields:
+                constraint_str += f"- Required JSON fields: {', '.join(required_fields)}\n"
+            if forbidden_keywords:
+                constraint_str += f"- Forbidden keywords: {', '.join(forbidden_keywords)}\n"
+            
+            constraint_str += "\nWhen providing suggestions, YOU MUST STRICTLY RESPECT these constraints. DO NOT give arbitrary replies on wordings that do not matter. Focus on the main requirement of the question ONLY based on the constraints above.\n"
+            constraint_str += "- If there is a maximum length/words limit, DO NOT suggest adding more details. Instead, suggest exactly 'Reduce the size to meet the maximum limit'.\n"
+            constraint_str += "- If there is a minimum length/words limit, DO NOT suggest removing details. Instead, suggest exactly 'Increase the size to meet the minimum limit'.\n"
+            constraint_str += "- If there are forbidden keywords, DO NOT suggest using them or related concepts. Instead, suggest exactly 'Remove the forbidden keywords'.\n"
+            constraint_str += "- If JSON is invalid or missing required fields, focus ONLY on JSON structure repair.\n\n"
+
+
         if reference_text and reference_text.strip():
             prompt = (
                 "Critique this generated response against the user query and ground truth reference text.\n\n"
                 f"Query: {user_query}\n"
                 f"Reference: {reference_text}\n"
                 f"Response: {generated_text}\n\n"
+                f"{constraint_str}"
                 "Return ONLY a JSON object with keys:\n"
                 "- \"score\": float (0.0 to 1.0 representing instruction/factual adherence)\n"
                 "- \"issues\": list of objects, each representing an issue, with keys:\n"
@@ -376,7 +417,9 @@ class CriticEvaluator(BaseEvaluator):
                 "  * \"Low\": Minor stylistic variations or optional details not included.\n"
                 "  * \"Informational\": Helpful observations, general feedback, or minor suggestions that are not actual failures.\n"
                 "- Request \"confidence\" based on how certain you are of the violation. If you are uncertain or the response is borderline, assign \"Low\".\n"
+                "- TREAT THE REFERENCE TEXT AS GUIDANCE, NOT A STRICT TEMPLATE. Valid paraphrases, semantically equivalent answers, or answers that provide additional correct information MUST be accepted and NOT penalized. Do NOT penalize a response just because it is more detailed or worded differently than the reference.\n"
                 "- Do NOT evaluate character/word length limits, keyword constraints (forbidden/required words), or JSON syntax/validity. These objective rules are handled strictly by separate deterministic code validators.\n"
+                "- Do NOT provide suggestions on how to fix character limits or JSON validity. The orchestrator handles this automatically. Focus your suggestions ONLY on factual corrections, meaning preservation, or tone adjustments.\n"
                 "- Do NOT hallucinate violations. Only report a forbidden word as a violation if it literally and explicitly appears in the Response.\n"
                 "- Do NOT criticize words that are merely associated with or implying a forbidden word unless the query explicitly bans related concepts.\n"
                 "- Be objective and literal. Avoid overly pedantic or subjective claims.\n\n"
@@ -388,6 +431,7 @@ class CriticEvaluator(BaseEvaluator):
                 "Critique this generated response against the user query instructions and constraints.\n\n"
                 f"Query: {user_query}\n"
                 f"Response: {generated_text}\n\n"
+                f"{constraint_str}"
                 "Return ONLY a JSON object with keys:\n"
                 "- \"score\": float (0.0 to 1.0 representing instruction/constraint adherence)\n"
                 "- \"issues\": list of objects, each representing an issue, with keys:\n"
@@ -403,6 +447,7 @@ class CriticEvaluator(BaseEvaluator):
                 "  * \"Informational\": Helpful observations, general feedback, or minor suggestions that are not actual failures.\n"
                 "- Request \"confidence\" based on how certain you are of the violation. If you are uncertain or the response is borderline, assign \"Low\".\n"
                 "- Do NOT evaluate character/word length limits, keyword constraints (forbidden/required words), or JSON syntax/validity. These objective rules are handled strictly by separate deterministic code validators.\n"
+                "- Do NOT provide suggestions on how to fix character limits or JSON validity. The orchestrator handles this automatically. Focus your suggestions ONLY on factual corrections, meaning preservation, or tone adjustments.\n"
                 "- Do NOT hallucinate violations. Only report a forbidden word as a violation if it literally and explicitly appears in the Response.\n"
                 "- Do NOT criticize words that are merely associated with or implying a forbidden word unless the query explicitly bans related concepts.\n"
                 "- Be objective and literal. Avoid overly pedantic or subjective claims.\n\n"

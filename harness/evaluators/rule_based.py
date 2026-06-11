@@ -110,7 +110,7 @@ class RuleBasedValidator(BaseEvaluator):
         if effective_max_length is not None and effective_max_length > 0:
             if actual_len > effective_max_length:
                 exceeded = actual_len - effective_max_length
-                issues.append(f"Response length is {actual_len}. Maximum allowed is {effective_max_length}. Reduce by at least {exceeded} characters.")
+                issues.append(f"Current length: {actual_len}. Maximum length: {effective_max_length}. Characters to remove: {exceeded}. You MUST remain under {effective_max_length} characters. This is a hard constraint.")
                 score -= 0.3
 
         # Minimum Length Validation

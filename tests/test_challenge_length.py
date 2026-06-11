@@ -26,7 +26,7 @@ def test_character_boundary_cases():
     res_over_1 = validator.evaluate(text_over_1)
     assert res_over_1.passed is False
     assert res_over_1.score == 0.7
-    assert any("Response length is 21" in iss and "Maximum allowed is 20" in iss and "Reduce by at least 1 characters" in iss for iss in res_over_1.issues)
+    assert any("Current length: 21" in iss and "Maximum length: 20" in iss and "Characters to remove: 1" in iss for iss in res_over_1.issues)
     
     # Verify overall reliability score is capped below 0.80 (specifically 0.49)
     rel_over_1 = compute_reliability("structured_json", rule_score=res_over_1.score)
@@ -38,7 +38,7 @@ def test_character_boundary_cases():
     res_over_2 = validator.evaluate(text_over_2)
     assert res_over_2.passed is False
     assert res_over_2.score == 0.7
-    assert any("Response length is 22" in iss and "Maximum allowed is 20" in iss and "Reduce by at least 2 characters" in iss for iss in res_over_2.issues)
+    assert any("Current length: 22" in iss and "Maximum length: 20" in iss and "Characters to remove: 2" in iss for iss in res_over_2.issues)
     
     # Verify overall reliability score is capped below 0.80 (specifically 0.49)
     rel_over_2 = compute_reliability("structured_json", rule_score=res_over_2.score)
@@ -50,7 +50,7 @@ def test_character_boundary_cases():
     res_over_5 = validator.evaluate(text_over_5)
     assert res_over_5.passed is False
     assert res_over_5.score == 0.7
-    assert any("Response length is 25" in iss and "Maximum allowed is 20" in iss and "Reduce by at least 5 characters" in iss for iss in res_over_5.issues)
+    assert any("Current length: 25" in iss and "Maximum length: 20" in iss and "Characters to remove: 5" in iss for iss in res_over_5.issues)
     
     # Verify overall reliability score is capped below 0.80 (specifically 0.49)
     rel_over_5 = compute_reliability("structured_json", rule_score=res_over_5.score)
@@ -102,6 +102,6 @@ def test_successful_repair_behavior_for_length(mock_agent_class, temp_db):
     # Verify repair prompt received warning message with correct format
     assert mock_agent.generate.call_count == 2
     repair_call_prompt = mock_agent.generate.call_args_list[1][0][0]
-    assert "Response length is 21" in repair_call_prompt
-    assert "Maximum allowed is 20" in repair_call_prompt
-    assert "Reduce by at least 1 characters" in repair_call_prompt
+    assert "Current length: 21" in repair_call_prompt
+    assert "Maximum length: 20" in repair_call_prompt
+    assert "Characters to remove: 1" in repair_call_prompt

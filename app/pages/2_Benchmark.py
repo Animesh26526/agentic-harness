@@ -32,7 +32,15 @@ st.set_page_config(
 
 # Page header styling
 st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+
 <style>
+    /* Styling overrides */
+    html, body, [class*="css"], .stMarkdown {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
     /* Hide Streamlit right header toolbar components (rerun, settings, screencast, hamburger menu) */
     #MainMenu {
         display: none !important;

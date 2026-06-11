@@ -39,8 +39,9 @@ def test_factual_qa_scoring():
     assert res["passed"] is True
 
     # 0.4 * 0.7 + 0.6 * 0.8 = 0.28 + 0.48 = 0.76 (failed)
+    # Note: Since the critic_score (0.8) is below the threshold, the overall score is capped to 0.49
     res2 = compute_reliability("factual_qa", semantic_score=0.7, critic_score=0.8)
-    assert pytest.approx(res2["overall_score"]) == 0.76
+    assert pytest.approx(res2["overall_score"]) == 0.49
     assert res2["passed"] is False
 
 def test_extraction_math_scoring():

@@ -106,6 +106,17 @@ def compute_reliability(
     # Cap reliability score below acceptance threshold if any objective check fails
     if objective_score < 1.0:
         overall_score = min(overall_score, 0.49)
+        
+    # Cap reliability score if subjective checks fail (critic or semantic)
+    if category == "factual_qa" or category == "constraint_following":
+        subj_thresh = Config.CRITIC_THRESHOLD
+    elif category == "extraction_math":
+        subj_thresh = Config.SEMANTIC_THRESHOLD
+    else:
+        subj_thresh = 1.0
+        
+    if subjective_score < subj_thresh:
+        overall_score = min(overall_score, 0.49)
 
     threshold = Config.RELIABILITY_THRESHOLD
     passed = (overall_score >= threshold) and (objective_score >= 1.0)

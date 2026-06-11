@@ -3,6 +3,7 @@ import os
 import sys
 import uuid
 import json
+import random
 import plotly.graph_objects as go
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from harness.config import Config
 from harness.orchestrator import Orchestrator
 from harness.database import DatabaseManager
 from harness.agent.gemini_agent import GeminiAgent
+from harness.scoring import generate_reliability_explanation_markdown
 
 st.set_page_config(
     page_title="Agentic Harness - Playground",
@@ -24,7 +26,15 @@ st.set_page_config(
 
 # Custom header styling
 st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+
 <style>
+    /* Styling overrides */
+    html, body, [class*="css"], .stMarkdown {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
     /* Hide Streamlit right header toolbar components (rerun, settings, screencast, hamburger menu) */
     #MainMenu {
         display: none !important;
@@ -58,6 +68,37 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
     }
     
+    /* Premium card container */
+    .kpi-card {
+        background: rgba(30, 34, 53, 0.6);
+        border: 1px solid rgba(0, 242, 254, 0.2);
+        border-radius: 16px;
+        padding: 24px;
+        text-align: center;
+        transition: transform 0.3s ease, border-color 0.3s ease;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(8px);
+    }
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        border-color: rgba(0, 242, 254, 0.6);
+    }
+    .kpi-val {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin: 8px 0;
+        background: linear-gradient(135deg, #00F2FE 0%, #0072FF 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .kpi-label {
+        font-size: 0.9rem;
+        color: #A5AEC0;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        font-weight: 600;
+    }
+
     /* Premium primary buttons styling */
     div.stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #00F2FE 0%, #4FACFE 100%) !important;
@@ -183,7 +224,7 @@ if 'eval_config' not in st.session_state:
 # Presets Quick Buttons (Change 4 & Preset UX Improvements)
 st.write("")
 st.markdown("⚡ **Quick Demo Presets:** Click one to instantly load a test case:")
-col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(5)
+col_p1, col_p2, col_p3, col_p4, col_p5, col_p6 = st.columns(6)
 
 with col_p1:
     if st.button("📝 JSON Generation", use_container_width=True):
@@ -195,6 +236,10 @@ with col_p1:
         st.session_state.reference_text = ""
         st.session_state.expand_json = True
         st.session_state.expand_keyword = False
+        st.session_state.max_length = 0
+        st.session_state.min_length = 0
+        st.session_state.min_words = 0
+        st.session_state.max_words = 0
         st.session_state.eval_result = None
         st.rerun()
         
@@ -209,6 +254,9 @@ with col_p2:
         st.session_state.expand_json = False
         st.session_state.expand_keyword = True
         st.session_state.max_length = 100
+        st.session_state.min_length = 0
+        st.session_state.min_words = 0
+        st.session_state.max_words = 0
         st.session_state.eval_result = None
         st.rerun()
 
@@ -222,6 +270,10 @@ with col_p3:
         st.session_state.reference_text = "Guido van Rossum developed Python and released it in 1991."
         st.session_state.expand_json = False
         st.session_state.expand_keyword = False
+        st.session_state.max_length = 0
+        st.session_state.min_length = 0
+        st.session_state.min_words = 0
+        st.session_state.max_words = 0
         st.session_state.eval_result = None
         st.rerun()
 
@@ -235,6 +287,10 @@ with col_p4:
         st.session_state.reference_text = "1879"
         st.session_state.expand_json = False
         st.session_state.expand_keyword = False
+        st.session_state.max_length = 0
+        st.session_state.min_length = 0
+        st.session_state.min_words = 0
+        st.session_state.max_words = 0
         st.session_state.eval_result = None
         st.rerun()
 
@@ -248,8 +304,50 @@ with col_p5:
         st.session_state.reference_text = "15 * 8 = 120"
         st.session_state.expand_json = False
         st.session_state.expand_keyword = False
+        st.session_state.max_length = 0
+        st.session_state.min_length = 0
+        st.session_state.min_words = 0
+        st.session_state.max_words = 0
         st.session_state.eval_result = None
         st.rerun()
+
+with col_p6:
+    if st.button("🎲 Random Case", use_container_width=True):
+        try:
+            with open(PROJECT_ROOT / "data" / "clean_challenge_dataset.json", "r") as f:
+                data = json.load(f)
+                case = random.choice(data)
+                st.session_state.user_query = case.get("prompt", "")
+                st.session_state.task_category = case.get("category", "structured_json")
+                cfg = case.get("evaluation_config", {})
+                st.session_state.validate_json = cfg.get("validate_json", False)
+                
+                req_fields = cfg.get("required_fields", [])
+                st.session_state.required_fields = ", ".join(req_fields) if isinstance(req_fields, list) else str(req_fields)
+                
+                forb_kw = cfg.get("forbidden_keywords", [])
+                st.session_state.forbidden_keywords = ", ".join(forb_kw) if isinstance(forb_kw, list) else str(forb_kw)
+                
+                st.session_state.reference_text = cfg.get("reference_text", "")
+                st.session_state.expand_json = st.session_state.validate_json
+                
+                st.session_state.max_length = cfg.get("max_length", 0)
+                st.session_state.min_length = cfg.get("min_length", 0)
+                st.session_state.min_words = cfg.get("min_words", 0)
+                st.session_state.max_words = cfg.get("max_words", 0)
+                
+                st.session_state.expand_keyword = (
+                    bool(st.session_state.forbidden_keywords) or 
+                    st.session_state.max_length > 0 or 
+                    st.session_state.min_length > 0 or 
+                    st.session_state.min_words > 0 or 
+                    st.session_state.max_words > 0
+                )
+                
+                st.session_state.eval_result = None
+                st.rerun()
+        except Exception as e:
+            st.error(f"Could not load random case: {e}")
 
 st.write("---")
 
@@ -382,26 +480,26 @@ with g_col_right:
         )
         max_length_input = st.number_input(
             "Maximum Character Length (0 for no limit)",
+            value=st.session_state.max_length,
             min_value=0,
-            key="max_length",
             help="Strict limit checked by the rule-based validator."
         )
         min_length_input = st.number_input(
             "Minimum Character Length (0 for no limit)",
+            value=st.session_state.min_length,
             min_value=0,
-            key="min_length",
             help="Strict minimum character limit checked by the rule-based validator."
         )
         min_words_input = st.number_input(
             "Minimum Word Count (0 for no limit)",
+            value=st.session_state.min_words,
             min_value=0,
-            key="min_words",
             help="Strict minimum word count limit checked by the rule-based validator."
         )
         max_words_input = st.number_input(
             "Maximum Word Count (0 for no limit)",
+            value=st.session_state.max_words,
             min_value=0,
-            key="max_words",
             help="Strict maximum word count limit checked by the rule-based validator."
         )
 
@@ -463,6 +561,31 @@ if task_category == "structured_json" and "name" in required_fields and "age" in
 
 # Step 4: Run Evaluation
 with g_col_left:
+    st.write("---")
+    st.markdown("### 🔍 Active Constraints Preview")
+    st.markdown("These are the strict constraints the Evaluator and Critic will use to judge the response:")
+    
+    col_c1, col_c2 = st.columns(2)
+    with col_c1:
+        if evaluation_config.get("max_length"):
+            st.markdown(f"- **Max Character Limit:** {evaluation_config['max_length']}")
+        if evaluation_config.get("min_length"):
+            st.markdown(f"- **Min Character Limit:** {evaluation_config['min_length']}")
+        if evaluation_config.get("max_words"):
+            st.markdown(f"- **Max Words:** {evaluation_config['max_words']}")
+        if evaluation_config.get("min_words"):
+            st.markdown(f"- **Min Words:** {evaluation_config['min_words']}")
+        if evaluation_config.get("validate_json"):
+            st.markdown(f"- **JSON Validation:** ON")
+    with col_c2:
+        if evaluation_config.get("forbidden_keywords"):
+            st.markdown(f"- **Forbidden Keywords:** {', '.join(evaluation_config['forbidden_keywords'])}")
+        if evaluation_config.get("required_fields"):
+            st.markdown(f"- **Required Fields:** {', '.join(evaluation_config['required_fields'])}")
+            
+    if not any([evaluation_config.get("max_length"), evaluation_config.get("min_length"), evaluation_config.get("max_words"), evaluation_config.get("min_words"), evaluation_config.get("validate_json"), evaluation_config.get("forbidden_keywords"), evaluation_config.get("required_fields")]):
+        st.info("No objective constraints configured. Only factual/semantic coherence will be evaluated.")
+        
     st.write("")
     submit_col1, submit_col2 = st.columns([3, 1])
     with submit_col1:
@@ -563,6 +686,11 @@ if submit:
                 
                 # Caching Effectiveness Metrics (Cache UI Validation)
                 st.markdown("### ⚡ Performance & Caching metrics")
+                
+                # Render Cache Criteria & Execution Source
+                st.markdown(f"**Execution Source**: `{'Cache' if cached_data else 'Live API'}`")
+                st.markdown(f"**Cache Criteria**: Query + Model (`{selected_model}`) + Harness (`{'ON' if harness_enabled else 'OFF'}`)")
+                
                 c_col1, c_col2, c_col3 = st.columns(3)
                 
                 if cached_data:
@@ -607,18 +735,67 @@ if submit:
                 
                 with b_col1:
                     score_str = f"{result.semantic_score:.3f}" if result.semantic_score is not None else "N/A"
-                    st.metric("Semantic Score", score_str, help="Embedding similarity measuring how well the meaning matches the ground truth.")
+                    st.markdown(f"""
+                    <div class="kpi-card" title="Embedding similarity measuring how well the meaning matches the ground truth.">
+                        <div class="kpi-label">Semantic Score</div>
+                        <div class="kpi-val">{score_str}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
                 with b_col2:
                     score_str = f"{result.rule_score:.3f}" if result.rule_score is not None else "N/A"
-                    st.metric("Rule Score", score_str, help="Verification of rigid keywords, length limits, or JSON syntax.")
+                    st.markdown(f"""
+                    <div class="kpi-card" title="Verification of rigid keywords, length limits, or JSON syntax.">
+                        <div class="kpi-label">Rule Score</div>
+                        <div class="kpi-val">{score_str}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
                 with b_col3:
                     score_str = f"{result.critic_score:.3f}" if result.critic_score is not None else "N/A"
-                    st.metric("Critic Score", score_str, help="Model-graded evaluator checking instruction following details.")
+                    st.markdown(f"""
+                    <div class="kpi-card" title="Model-graded evaluator checking instruction following details.">
+                        <div class="kpi-label">Critic Score</div>
+                        <div class="kpi-val">{score_str}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
                 with b_col4:
-                    st.metric("Reliability Score", f"{result.overall_score:.3f}", help="Composite score representing final overall compliance rate.")
+                    if not harness_enabled:
+                        rel_str = "N/A"
+                    else:
+                        rel_str = f"{int(result.overall_score * 100)}/100"
+                        
+                    st.markdown(f"""
+                    <div class="kpi-card" title="Composite score representing final overall compliance rate.">
+                        <div class="kpi-label">Reliability Score</div>
+                        <div class="kpi-val">{rel_str}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                if harness_enabled:
+                    issues_list = result.issues if isinstance(result.issues, list) else []
+                    if isinstance(result.issues, str):
+                        try:
+                            issues_list = json.loads(result.issues)
+                        except:
+                            try:
+                                issues_list = eval(result.issues)
+                            except:
+                                issues_list = []
+                                
+                    explanation_html = generate_reliability_explanation_markdown(
+                        overall_score=result.overall_score,
+                        passed=result.passed,
+                        category=result.category,
+                        rule_score=result.rule_score,
+                        semantic_score=result.semantic_score,
+                        critic_score=result.critic_score,
+                        issues=issues_list,
+                        retry_count=result.retry_count,
+                        evaluation_config=evaluation_config
+                    )
+                    st.markdown(explanation_html, unsafe_allow_html=True)
                 
                 # Below: Retry Trace Timeline (Change 2)
                 if harness_enabled and len(traces) > 0:
@@ -656,9 +833,9 @@ if submit:
                             if issues_list:
                                 st.markdown("<span style='color:#EF4444; font-weight:bold;'>Violations:</span>", unsafe_allow_html=True)
                                 for issue in issues_list:
-                                    st.write(f"- {issue}")
+                                    st.checkbox(f"❌ {issue}", value=False, disabled=True, key=f"issue_{idx}_{uuid.uuid4().hex[:8]}")
                             else:
-                                st.write("✅ All verification rules passed successfully.")
+                                st.checkbox("✅ All verification rules passed successfully.", value=True, disabled=True, key=f"pass_{idx}")
                             
                             # Critic Transparency (Expose Critic Rationale/Reasoning)
                             if trace.get("critic_feedback"):
@@ -669,51 +846,77 @@ if submit:
                             if trace.get("retry_triggered") == 1:
                                 st.write("🔄 Retry loop triggered with compiler feedback.")
 
-                # Below: Why Harness Changed The Answer (Change 2)
+                # Below: Agentic Evaluation Narrative
                 st.write("")
-                st.markdown("### 💡 Why Harness Changed The Answer")
+                st.markdown("### 💡 Agentic Evaluation Narrative")
                 if harness_enabled:
                     if result.retry_count > 0:
-                        all_issues = []
-                        for t in traces:
-                            if t.get("issues"):
+                        initial_issues = []
+                        if len(traces) > 0 and traces[0].get("issues"):
+                            try:
+                                initial_issues = json.loads(traces[0]["issues"]) if isinstance(traces[0]["issues"], str) else traces[0]["issues"]
+                            except:
                                 try:
-                                    issues_list = json.loads(t["issues"]) if isinstance(t["issues"], str) else t["issues"]
-                                except Exception:
-                                    try:
-                                        issues_list = eval(t["issues"]) if isinstance(t["issues"], str) else t["issues"]
-                                    except Exception:
-                                        issues_list = []
-                                for issue in issues_list:
-                                    if issue not in all_issues:
-                                        all_issues.append(issue)
-                                        
-                        explanation = (
-                            f"The raw model response failed initial validation. "
-                            f"The Harness detected **{len(all_issues)} core violations**:  \n"
-                        )
-                        for issue in all_issues:
-                            explanation += f"- *{issue}*  \n"
+                                    initial_issues = eval(traces[0]["issues"]) if isinstance(traces[0]["issues"], str) else traces[0]["issues"]
+                                except:
+                                    initial_issues = []
+                        
+                        outstanding_issues = []
+                        if len(traces) > 0 and traces[-1].get("issues"):
+                            try:
+                                outstanding_issues = json.loads(traces[-1]["issues"]) if isinstance(traces[-1]["issues"], str) else traces[-1]["issues"]
+                            except:
+                                try:
+                                    outstanding_issues = eval(traces[-1]["issues"]) if isinstance(traces[-1]["issues"], str) else traces[-1]["issues"]
+                                except:
+                                    outstanding_issues = []
+                        resolved_issues = [iss for iss in initial_issues if iss not in outstanding_issues]
+                        
+                        outcome_str = "Passed" if result.passed else "Failed"
+                        rel_str = f"{int(result.overall_score * 100)} / 100"
+                        
+                        explanation = f"**Outcome:** {outcome_str}  \n"
+                        explanation += f"**Reliability:** {rel_str}  \n"
+                        explanation += f"**Retry Count:** {result.retry_count}  \n\n"
+                        
+                        explanation += "**Initial Violations Detected:**  \n"
+                        if initial_issues:
+                            for issue in initial_issues:
+                                explanation += f"- {issue}  \n"
+                        else:
+                            explanation += "- None  \n"
+                            
+                        explanation += "\n**Resolved:**  \n"
+                        if resolved_issues:
+                            for issue in resolved_issues:
+                                explanation += f"- ✅ {issue}  \n"
+                        else:
+                            explanation += "- None  \n"
+                            
+                        explanation += "\n**Remaining Issues:**  \n"
+                        if outstanding_issues:
+                            for issue in outstanding_issues:
+                                explanation += f"- ❌ {issue}  \n"
+                        else:
+                            explanation += "- None  \n"
+
                         if result.passed:
-                            explanation += (
-                                f"\nThe framework compiled these validation errors into a contextual re-prompt. "
-                                f"After **{result.retry_count} self-correction attempt(s)**, the model successfully "
-                                f"realigned its response to satisfy all constraints, raising the reliability score from "
-                                f"**{traces[0]['overall_reliability']:.3f}** to **{result.overall_score:.3f}**."
-                            )
                             st.success(explanation)
                         else:
-                            explanation += (
-                                f"\nThe framework compiled these validation errors into a contextual re-prompt. "
-                                f"Despite **{result.retry_count} self-correction attempt(s)**, the model was unable "
-                                f"to fully satisfy all constraints. The final reliability score is **{result.overall_score:.3f}**."
-                            )
                             st.error(explanation)
                     else:
-                        st.success(
-                            f"No correction was needed! The raw model output passed all safety, semantic, "
-                            f"and rule-based checks on the first attempt with a reliability score of **{result.overall_score:.3f}**."
-                        )
+                        outcome_str = "Passed" if result.passed else "Failed"
+                        rel_str = f"{int(result.overall_score * 100)} / 100"
+                        
+                        explanation = f"**Outcome:** {outcome_str}  \n"
+                        explanation += f"**Reliability:** {rel_str}  \n"
+                        explanation += f"**Retry Count:** 0  \n\n"
+                        explanation += "No correction was needed! The raw model output passed all safety, semantic, and rule-based checks on the first attempt."
+                        
+                        if result.passed:
+                            st.success(explanation)
+                        else:
+                            st.error(explanation)
                 else:
                     st.warning("Self-correction was disabled (Harness OFF). The response was returned directly from the model without verification checks.")
 

@@ -198,7 +198,12 @@ class Orchestrator:
                 critic_result = critic_eval.evaluate(
                     generated_text=current_response,
                     reference_text=ref_text,
-                    user_query=query
+                    user_query=query,
+                    max_length=evaluation_config.get("max_length"),
+                    min_length=evaluation_config.get("min_length"),
+                    validate_json=evaluation_config.get("validate_json"),
+                    required_fields=evaluation_config.get("required_fields"),
+                    forbidden_keywords=evaluation_config.get("forbidden_keywords")
                 )
                 critic_score = critic_result.score
                 issues.extend(critic_result.issues)
@@ -242,6 +247,10 @@ class Orchestrator:
                 critic_feedback=critic_feedback
             )
 
+            rule_issues = rule_result.issues if "rule" in active_evaluators else []
+            semantic_issues = semantic_result.issues if "semantic" in active_evaluators else []
+            critic_issues = critic_result.issues if "critic" in active_evaluators else []
+
             # STEP 6: If passed or maximum retries exhausted, exit the loop
             if passed or not retry_triggered:
                 break
@@ -252,16 +261,34 @@ class Orchestrator:
                 f"Original Query: {query}\n\n"
                 f"Previous Response:\n{current_response}\n\n"
             )
+            
             if issues:
-                repair_prompt += "Issues:\n"
-                for issue in issues:
-                    repair_prompt += f"- {issue}\n"
-                repair_prompt += "\n"
+                repair_prompt += "Optimize the response to satisfy ALL constraints simultaneously.\n\n"
+                
+                if rule_issues:
+                    repair_prompt += "Priority 1: Objective constraints (character limits, JSON validity, required fields)\n"
+                    for issue in rule_issues:
+                        repair_prompt += f"- {issue}\n"
+                    repair_prompt += "\n"
+                    
+                if semantic_issues:
+                    repair_prompt += "Priority 2: Semantic/reference improvements\n"
+                    for issue in semantic_issues:
+                        repair_prompt += f"- {issue}\n"
+                    repair_prompt += "\n"
+                    
+                if critic_issues:
+                    repair_prompt += "Priority 3: Style improvements\n"
+                    for issue in critic_issues:
+                        repair_prompt += f"- {issue}\n"
+                    repair_prompt += "\n"
+                    
             if suggestions:
                 repair_prompt += "Suggestions:\n"
                 for suggestion in suggestions:
                     repair_prompt += f"- {suggestion}\n"
                 repair_prompt += "\n"
+                
             repair_prompt += "Please regenerate a corrected response."
 
             # Regenerate response using the repair prompt
