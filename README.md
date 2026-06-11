@@ -77,7 +77,7 @@ pytest
 
 ### Run Streamlit Dashboard
 ```bash
-streamlit run app/main.py
+    streamlit run app/main.py
 ```
 
 ### Run Benchmark

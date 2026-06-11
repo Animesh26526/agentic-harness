@@ -82,7 +82,7 @@ def test_length_limit_violations():
     
     assert result.passed is False
     assert result.score == 0.70
-    assert any("exceeds the limit of 20" in issue for issue in result.issues)
+    assert any("Maximum allowed is 20" in issue for issue in result.issues)
 
 def test_markdown_wrapped_json():
     """Confirms that JSON wrapped inside Markdown formatting (```json ... ```) is cleaned and validated."""
@@ -173,3 +173,52 @@ def test_detailed_metadata_counts():
     assert result_mixed.metadata["schema_errors_count"] == 2
     assert result_mixed.metadata["missing_fields_count"] == 1
     assert result_mixed.metadata["type_errors_count"] == 1
+
+def test_word_count_limits():
+    """Verify that min_words and max_words constraints are enforced and reported correctly."""
+    validator = RuleBasedValidator()
+    
+    # Test min_words met
+    res = validator.evaluate("One two three four five", min_words=5)
+    assert res.passed is True
+    assert res.score == 1.0
+    
+    # Test min_words failed
+    res2 = validator.evaluate("One two three four", min_words=5)
+    assert res2.passed is False
+    assert res2.score == 0.70
+    assert any("Response contains 4 words. Minimum required is 5 words." in issue for issue in res2.issues)
+
+    # Test max_words met
+    res3 = validator.evaluate("One two three four five", max_words=5)
+    assert res3.passed is True
+    assert res3.score == 1.0
+
+    # Test max_words failed
+    res4 = validator.evaluate("One two three four five six", max_words=5)
+    assert res4.passed is False
+    assert res4.score == 0.70
+    assert any("Response contains 6 words. Maximum allowed is 5 words." in issue for issue in res4.issues)
+
+def test_rule_multiple_code_blocks_json():
+    """Verify that RuleBasedValidator successfully extracts and parses JSON even if it is preceded by a python block."""
+    validator = RuleBasedValidator()
+    response_text = """Here is some explanation code:
+    ```python
+    def dummy():
+        return "not JSON"
+    ```
+    And here is the JSON:
+    ```json
+    {"scores": [10, 20, 30]}
+    ```"""
+    
+    res = validator.evaluate(
+        response_text,
+        validate_json=True,
+        required_fields=["scores"],
+        field_types={"scores": "array"}
+    )
+    
+    assert res.passed is True
+    assert res.score == 1.0

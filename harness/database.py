@@ -363,6 +363,28 @@ class DatabaseManager:
             results.append(d)
         return results
 
+    def clear_all_data(self) -> None:
+        """Wipes all rows from all tables in the SQLite database."""
+        if not self._conn:
+            self.initialize()
+        assert self._conn is not None
+        with self._conn:
+            self._conn.execute("DELETE FROM evaluation_traces;")
+            self._conn.execute("DELETE FROM run_logs;")
+            self._conn.execute("DELETE FROM benchmark_runs;")
+            try:
+                self._conn.execute("DELETE FROM harness_memory;")
+            except sqlite3.OperationalError:
+                pass
+        
+        # Set isolation_level to None to guarantee autocommit mode for VACUUM
+        old_isolation = self._conn.isolation_level
+        self._conn.isolation_level = None
+        try:
+            self._conn.execute("VACUUM;")
+        finally:
+            self._conn.isolation_level = old_isolation
+
     def close(self) -> None:
         """
         Closes the database connection safely.

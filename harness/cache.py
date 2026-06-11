@@ -7,7 +7,17 @@ from harness.config import Config
 class ResponseCacheManager:
     """
     Manages lightweight, SQLite-based response caching for the Agentic Harness.
-    Caches execution results by prompt, model name, and harness mode.
+    
+    REDESIGNED CACHING POLICY (Version 1.1):
+    The cache acts strictly as a repository of successful harness interventions.
+    We do NOT cache failures, low-reliability outputs, critic failures, or unchanged outputs.
+    
+    A result is cached only if:
+    1. Harness is ENABLED.
+    2. Final composite reliability score >= Config.RELIABILITY_THRESHOLD (usually 0.80).
+    3. The final output passed validation (passed is True).
+    4. The harness actively intervened and added value:
+       - Retry Count > 0 OR Reliability score improved relative to the first pass.
     """
     def __init__(self, db_path: str = "harness_metrics.db"):
         """

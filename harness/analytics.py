@@ -198,3 +198,122 @@ def get_retry_distribution(run_id: str, db_path: str = "harness_metrics.db") -> 
         return distribution
     finally:
         conn.close()
+
+
+def get_harness_effectiveness(run_id: str, db_path: str = "harness_metrics.db") -> Dict[str, Any]:
+    """
+    Computes comprehensive effectiveness analytics for a specific benchmark run.
+
+    Args:
+        run_id (str): The active ON benchmark run ID.
+        db_path (str): Path to the SQLite database.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing metrics like raw_pass_rate, false_retry_rate, etc.
+    """
+    conn = _get_connection(db_path)
+    cursor = conn.cursor()
+    try:
+        # Fetch all final run logs
+        cursor.execute(
+            "SELECT query_id, retry_count, status, overall_reliability "
+            "FROM run_logs WHERE run_id = ?",
+            (run_id,)
+        )
+        logs = cursor.fetchall()
+        total_runs = len(logs)
+        if total_runs == 0:
+            return {
+                "total_runs": 0,
+                "raw_pass_rate": 0.0,
+                "harness_pass_rate": 0.0,
+                "retry_rate": 0.0,
+                "retry_success_rate": 0.0,
+                "false_retry_rate": 0.0,
+                "false_pass_rate": 0.0
+            }
+
+        # Fetch all attempt traces for this run to audit raw model behavior (attempt = 1)
+        cursor.execute(
+            "SELECT query_id, attempt, overall_reliability, issues, retry_triggered "
+            "FROM evaluation_traces WHERE run_id = ? "
+            "ORDER BY query_id, attempt ASC",
+            (run_id,)
+        )
+        traces_by_query = {}
+        for row in cursor.fetchall():
+            q_id = row["query_id"]
+            if q_id not in traces_by_query:
+                traces_by_query[q_id] = []
+            traces_by_query[q_id].append({
+                "attempt": row["attempt"],
+                "overall_reliability": row["overall_reliability"],
+                "issues": json.loads(row["issues"]) if isinstance(row["issues"], str) else (row["issues"] or []),
+                "retry_triggered": bool(row["retry_triggered"])
+            })
+
+        raw_passed_count = 0
+        harness_passed_count = 0
+        retried_count = 0
+        retry_success_count = 0
+        false_retry_count = 0
+        false_pass_count = 0
+
+        # Retrieve reliability threshold from active config
+        threshold = Config.RELIABILITY_THRESHOLD
+
+        for log in logs:
+            q_id = log["query_id"]
+            retry_count = log["retry_count"]
+            status = log["status"]
+            
+            is_final_pass = (status == "SUCCESS")
+            if is_final_pass:
+                harness_passed_count += 1
+
+            if retry_count > 0:
+                retried_count += 1
+                if is_final_pass:
+                    retry_success_count += 1
+
+            # Analyze attempt 1 from traces
+            q_traces = traces_by_query.get(q_id, [])
+            attempt_1 = next((t for t in q_traces if t["attempt"] == 1), None)
+
+            if attempt_1:
+                # Raw output passed if score >= threshold and there are no validation issues/violations
+                raw_passed = (attempt_1["overall_reliability"] >= threshold) and (len(attempt_1["issues"]) == 0)
+                if raw_passed:
+                    raw_passed_count += 1
+                    # False Retry: The response was already correct on attempt 1, but a retry was triggered
+                    if retry_count > 0:
+                        false_retry_count += 1
+            else:
+                # Fallback if trace was not captured
+                if is_final_pass and retry_count == 0:
+                    raw_passed_count += 1
+
+            # False Pass: Harness marked SUCCESS/passed but final response had outstanding violations
+            if is_final_pass:
+                final_trace = q_traces[-1] if q_traces else None
+                if final_trace and len(final_trace["issues"]) > 0:
+                    false_pass_count += 1
+
+        raw_pass_rate = float(raw_passed_count) / total_runs
+        harness_pass_rate = float(harness_passed_count) / total_runs
+        retry_rate = float(retried_count) / total_runs
+        retry_success_rate = float(retry_success_count) / retried_count if retried_count > 0 else 0.0
+        false_retry_rate = float(false_retry_count) / total_runs
+        false_pass_rate = float(false_pass_count) / total_runs
+
+        return {
+            "total_runs": total_runs,
+            "raw_pass_rate": raw_pass_rate,
+            "harness_pass_rate": harness_pass_rate,
+            "retry_rate": retry_rate,
+            "retry_success_rate": retry_success_rate,
+            "false_retry_rate": false_retry_rate,
+            "false_pass_rate": false_pass_rate
+        }
+    finally:
+        conn.close()

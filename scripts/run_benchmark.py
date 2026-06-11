@@ -135,7 +135,11 @@ def run_benchmark(
                     validate_json=eval_config.get("validate_json", False),
                     required_fields=eval_config.get("required_fields"),
                     field_types=eval_config.get("field_types"),
-                    forbidden_keywords=eval_config.get("forbidden_keywords")
+                    forbidden_keywords=eval_config.get("forbidden_keywords"),
+                    max_length=eval_config.get("max_length"),
+                    min_length=eval_config.get("min_length"),
+                    min_words=eval_config.get("min_words"),
+                    max_words=eval_config.get("max_words")
                 )
                 rul_score = rule_res.score
                 issues_off.extend(rule_res.issues)

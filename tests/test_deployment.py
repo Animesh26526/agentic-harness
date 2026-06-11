@@ -47,11 +47,16 @@ def test_streamlit_pages_import():
     mock_st.selectbox.side_effect = lambda label, options, *args, **kwargs: options[0] if options else ''
     mock_st.sidebar.selectbox.side_effect = lambda label, options, *args, **kwargs: options[0] if options else ''
     mock_st.columns.side_effect = lambda spec: [MagicMock() for _ in range(spec if isinstance(spec, int) else len(spec))]
+    mock_st.button.return_value = False
+    mock_st.sidebar.button.return_value = False
+    mock_st.checkbox.return_value = False
     
     # Store originals
     orig_modules = sys.modules.copy()
     
     sys.modules['streamlit'] = mock_st
+    sys.modules['streamlit.components'] = MagicMock()
+    sys.modules['streamlit.components.v1'] = MagicMock()
     sys.modules['plotly'] = MagicMock()
     sys.modules['plotly.graph_objects'] = MagicMock()
     sys.modules['plotly.express'] = MagicMock()

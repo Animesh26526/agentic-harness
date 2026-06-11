@@ -182,3 +182,52 @@ def test_context_manager_safety():
     finally:
         if os.path.exists(temp_file):
             os.remove(temp_file)
+
+def test_clear_all_data(temp_db):
+    """Test that clear_all_data successfully wipes records from all tables."""
+    run_id = "test_run_clear"
+    query_id = "q_clear"
+    
+    # 1. Populate the database
+    temp_db.create_run(run_id=run_id, harness_enabled=True)
+    temp_db.log_run_result(
+        run_id=run_id,
+        query_id=query_id,
+        category="structured_json",
+        query_text="Query",
+        harness_enabled=True,
+        raw_response='{"x": 1}',
+        final_response='{"x": 1}',
+        semantic_score=1.0,
+        rule_score=1.0,
+        critic_score=1.0,
+        overall_reliability=1.0,
+        retry_count=0,
+        status="SUCCESS",
+        issues=[]
+    )
+    temp_db.log_trace(
+        run_id=run_id,
+        query_id=query_id,
+        attempt=1,
+        raw_response='{"x": 1}',
+        semantic_score=1.0,
+        rule_score=1.0,
+        critic_score=1.0,
+        overall_reliability=1.0,
+        issues=[],
+        retry_triggered=False
+    )
+    
+    # Verify entries exist
+    assert temp_db.get_run(run_id) is not None
+    assert len(temp_db.get_run_logs(run_id)) == 1
+    assert len(temp_db.get_traces(run_id, query_id)) == 1
+    
+    # 2. Clear all data
+    temp_db.clear_all_data()
+    
+    # Verify tables are completely empty
+    assert temp_db.get_run(run_id) is None
+    assert len(temp_db.get_run_logs(run_id)) == 0
+    assert len(temp_db.get_traces(run_id, query_id)) == 0

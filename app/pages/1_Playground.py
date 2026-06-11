@@ -18,12 +18,38 @@ from harness.agent.gemini_agent import GeminiAgent
 st.set_page_config(
     page_title="Agentic Harness - Playground",
     page_icon="🧪",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # Custom header styling
 st.markdown("""
 <style>
+    /* Hide Streamlit right header toolbar components (rerun, settings, screencast, hamburger menu) */
+    #MainMenu {
+        display: none !important;
+    }
+    [data-testid="stHeaderDropdownButton"] {
+        display: none !important;
+    }
+    [data-testid="stHeaderRerunButton"] {
+        display: none !important;
+    }
+    button[title="Rerun"] {
+        display: none !important;
+    }
+    button[title="Settings"] {
+        display: none !important;
+    }
+    div[data-testid="stDecoration"] {
+        display: none !important;
+    }
+    
+    /* Reduce metric font size to prevent clipping */
+    [data-testid="stMetricValue"] {
+        font-size: 1.05rem !important;
+    }
+
     h1, h2, h3 {
         font-family: 'Outfit', sans-serif;
         font-weight: 800;
@@ -31,6 +57,21 @@ st.markdown("""
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
+    
+    /* Premium primary buttons styling */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #00F2FE 0%, #4FACFE 100%) !important;
+        color: #000000 !important;
+        font-weight: 900 !important;
+        border: none !important;
+        box-shadow: 0 4px 15px rgba(0, 242, 254, 0.4) !important;
+        transition: all 0.3s ease !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(0, 242, 254, 0.6) !important;
+    }
+
     .badge {
         padding: 4px 12px;
         border-radius: 8px;
@@ -62,7 +103,7 @@ st.write(
     "identifies and repairs model failures in real time. Use the quick demo presets below to test instantly."
 )
 
-# Sidebar Credentials & Glossary
+# Sidebar Credentials, Cache, & Glossary
 st.sidebar.header("Agent Settings")
 api_key_override = st.sidebar.text_input(
     "Gemini API Key override",
@@ -72,24 +113,34 @@ api_key_override = st.sidebar.text_input(
     help="Provide Gemini API Key to run real evaluations. If using Llama, please set GROQ_API_KEY or OPENROUTER_API_KEY in .env."
 )
 
+st.sidebar.header("Response Cache")
+if st.sidebar.button("🗑️ Clear Cache", use_container_width=True):
+    import importlib
+    import harness.cache
+    importlib.reload(harness.cache)
+    import harness.database
+    importlib.reload(harness.database)
+    
+    cache_manager = harness.cache.ResponseCacheManager()
+    cache_manager.clear()
+    
+    db_manager = harness.database.DatabaseManager()
+    db_manager.clear_all_data()
+    db_manager.close()
+    st.sidebar.success("Cache and performance data cleared successfully!")
+    st.rerun()
+
 st.sidebar.header("Reliability Glossary")
 st.sidebar.markdown(
     """
-    **What is Self-Correction?**  
-    A closed-loop engineering guardrail where evaluation failures compile into repair prompts, instructing the model to self-correct.
-    
-    **What is Reliability Score?**  
-    A composite compliance rate (0.0 to 1.0) aggregate across rule, semantic, and critic scores.
-    
-    **What is a Critic?**  
-    An LLM agent evaluator analyzing response logic, constraint adherence, and instruction alignment.
-    
-    **What is Semantic Similarity?**  
-    Embedding-based distance checking verifying factual alignment against ground truth.
+    - **Self-Correction**: Closed-loop framework where validation failures compile into repair prompts, instructing the model to self-correct.
+    - **Reliability Score**: Composite weighted index combining rule verification (40%) and critic evaluations (60%).
+    - **Critic Evaluator**: LLM agent analyzing response logic, constraints, and factual compliance.
+    - **Semantic similarity**: Embedding-based validation verifying response factuality against reference ground truth.
     """
 )
 
-# Initialize session state variables for presets
+# Initialize session state variables for presets and evaluations
 if 'user_query' not in st.session_state:
     st.session_state.user_query = ""
 if 'task_category' not in st.session_state:
@@ -108,6 +159,26 @@ if 'expand_keyword' not in st.session_state:
     st.session_state.expand_keyword = False
 if 'max_length' not in st.session_state:
     st.session_state.max_length = 0
+if 'min_length' not in st.session_state:
+    st.session_state.min_length = 0
+if 'min_words' not in st.session_state:
+    st.session_state.min_words = 0
+if 'max_words' not in st.session_state:
+    st.session_state.max_words = 0
+
+# Initialize evaluation result in session state
+if 'eval_result' not in st.session_state:
+    st.session_state.eval_result = None
+if 'eval_traces' not in st.session_state:
+    st.session_state.eval_traces = []
+if 'eval_is_cache_hit' not in st.session_state:
+    st.session_state.eval_is_cache_hit = False
+if 'eval_harness_enabled' not in st.session_state:
+    st.session_state.eval_harness_enabled = False
+if 'eval_selected_model' not in st.session_state:
+    st.session_state.eval_selected_model = ""
+if 'eval_config' not in st.session_state:
+    st.session_state.eval_config = {}
 
 # Presets Quick Buttons (Change 4 & Preset UX Improvements)
 st.write("")
@@ -124,6 +195,7 @@ with col_p1:
         st.session_state.reference_text = ""
         st.session_state.expand_json = True
         st.session_state.expand_keyword = False
+        st.session_state.eval_result = None
         st.rerun()
         
 with col_p2:
@@ -137,6 +209,7 @@ with col_p2:
         st.session_state.expand_json = False
         st.session_state.expand_keyword = True
         st.session_state.max_length = 100
+        st.session_state.eval_result = None
         st.rerun()
 
 with col_p3:
@@ -149,6 +222,7 @@ with col_p3:
         st.session_state.reference_text = "Guido van Rossum developed Python and released it in 1991."
         st.session_state.expand_json = False
         st.session_state.expand_keyword = False
+        st.session_state.eval_result = None
         st.rerun()
 
 with col_p4:
@@ -161,6 +235,7 @@ with col_p4:
         st.session_state.reference_text = "1879"
         st.session_state.expand_json = False
         st.session_state.expand_keyword = False
+        st.session_state.eval_result = None
         st.rerun()
 
 with col_p5:
@@ -173,6 +248,54 @@ with col_p5:
         st.session_state.reference_text = "15 * 8 = 120"
         st.session_state.expand_json = False
         st.session_state.expand_keyword = False
+        st.session_state.eval_result = None
+        st.rerun()
+
+st.write("---")
+
+# 🎯 Hardened Challenge Dataset Loading
+challenge_dataset_path = PROJECT_ROOT / "data" / "challenge_dataset.json"
+if challenge_dataset_path.exists():
+    st.markdown("### 🎯 Hardened Challenge Dataset")
+    ch_col_sel, ch_col_load = st.columns([4, 1])
+
+    with open(challenge_dataset_path, "r") as f:
+        challenge_data = json.load(f)
+        
+    with ch_col_sel:
+        selected_challenge = st.selectbox(
+            "Select Challenge Scenario",
+            options=challenge_data,
+            format_func=lambda x: f"{x['query_id']}: {x['description']}"
+        )
+    with ch_col_load:
+        st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+        load_challenge_button = st.button("🎯 Load Challenge", use_container_width=True)
+        
+    if load_challenge_button:
+        ch_config = selected_challenge["evaluation_config"]
+        st.session_state.user_query = selected_challenge["input"]
+        st.session_state.task_category = selected_challenge["category"]
+        st.session_state.validate_json = ch_config.get("validate_json", False)
+        req_f = ch_config.get("required_fields", [])
+        st.session_state.required_fields = ", ".join(req_f) if isinstance(req_f, list) else str(req_f)
+        forb_k = ch_config.get("forbidden_keywords", [])
+        st.session_state.forbidden_keywords = ", ".join(forb_k) if isinstance(forb_k, list) else str(forb_k)
+        st.session_state.reference_text = ch_config.get("reference_text", selected_challenge.get("expected_output", ""))
+        st.session_state.max_length = ch_config.get("max_length", 0)
+        st.session_state.min_length = ch_config.get("min_length", 0)
+        st.session_state.min_words = ch_config.get("min_words", 0)
+        st.session_state.max_words = ch_config.get("max_words", 0)
+        
+        # Expand sliders/expanders accordingly in session state
+        st.session_state.expand_json = bool(ch_config.get("validate_json", False))
+        st.session_state.expand_keyword = (
+            len(ch_config.get("forbidden_keywords", [])) > 0 
+            or ch_config.get("max_length", 0) > 0 
+            or ch_config.get("min_length", 0) > 0 
+            or ch_config.get("min_words", 0) > 0 
+            or ch_config.get("max_words", 0) > 0
+        )
         st.rerun()
 
 st.write("---")
@@ -235,15 +358,23 @@ with g_col_right:
     )
 
     # Preset UX Improvements: expand relevant expander automatically
-    with st.expander("Structured JSON Validation Settings", expanded=st.session_state.expand_json):
-        validate_json = st.checkbox("Enforce JSON Schema Check", value=st.session_state.validate_json)
+    with st.expander("Structured JSON Validation Settings", expanded=bool(st.session_state.expand_json)):
+        is_json_active = bool(st.session_state.validate_json)
+        validate_json_checked = st.checkbox("Enforce JSON Schema Check", value=is_json_active)
+        if not validate_json_checked:
+            validate_json = False
+        else:
+            if st.session_state.validate_json == "invalid":
+                validate_json = "invalid"
+            else:
+                validate_json = True
         required_fields_input = st.text_input(
             "Required JSON Keys (comma-separated)",
             value=st.session_state.required_fields,
             placeholder="e.g. name, age, city"
         )
 
-    with st.expander("Keyword Constraint Settings", expanded=st.session_state.expand_keyword):
+    with st.expander("Keyword & Length Constraint Settings", expanded=st.session_state.expand_keyword):
         forbidden_keywords_input = st.text_input(
             "Forbidden Words (comma-separated)",
             value=st.session_state.forbidden_keywords,
@@ -255,22 +386,71 @@ with g_col_right:
             key="max_length",
             help="Strict limit checked by the rule-based validator."
         )
+        min_length_input = st.number_input(
+            "Minimum Character Length (0 for no limit)",
+            min_value=0,
+            key="min_length",
+            help="Strict minimum character limit checked by the rule-based validator."
+        )
+        min_words_input = st.number_input(
+            "Minimum Word Count (0 for no limit)",
+            min_value=0,
+            key="min_words",
+            help="Strict minimum word count limit checked by the rule-based validator."
+        )
+        max_words_input = st.number_input(
+            "Maximum Word Count (0 for no limit)",
+            min_value=0,
+            key="max_words",
+            help="Strict maximum word count limit checked by the rule-based validator."
+        )
 
 # Format lists
-required_fields = [f.strip() for f in required_fields_input.split(",") if f.strip()]
-forbidden_keywords = [k.strip() for k in forbidden_keywords_input.split(",") if k.strip()]
+def parse_comma_separated_input(val):
+    if not val:
+        return []
+    cleaned = str(val).strip()
+    if cleaned.startswith("[") and cleaned.endswith("]"):
+        cleaned = cleaned[1:-1]
+    items = []
+    for item in cleaned.split(","):
+        item = item.strip().strip("'").strip('"')
+        if item:
+            items.append(item)
+    return items
+
+required_fields = parse_comma_separated_input(required_fields_input)
+forbidden_keywords = parse_comma_separated_input(forbidden_keywords_input)
 
 try:
     max_length_val = int(max_length_input)
 except (ValueError, TypeError):
     max_length_val = 0
 
+try:
+    min_length_val = int(min_length_input)
+except (ValueError, TypeError):
+    min_length_val = 0
+
+try:
+    min_words_val = int(min_words_input)
+except (ValueError, TypeError):
+    min_words_val = 0
+
+try:
+    max_words_val = int(max_words_input)
+except (ValueError, TypeError):
+    max_words_val = 0
+
 evaluation_config = {
     "validate_json": validate_json,
     "required_fields": required_fields,
     "forbidden_keywords": forbidden_keywords,
     "reference_text": reference_text_input,
-    "max_length": max_length_val if max_length_val > 0 else None
+    "max_length": max_length_val if max_length_val > 0 else None,
+    "min_length": min_length_val if min_length_val > 0 else None,
+    "min_words": min_words_val if min_words_val > 0 else None,
+    "max_words": max_words_val if max_words_val > 0 else None
 }
 
 # Auto-inject type mappings for JSON profile presets
@@ -282,20 +462,21 @@ if task_category == "structured_json" and "name" in required_fields and "age" in
     }
 
 # Step 4: Run Evaluation
-st.write("")
-submit_col1, submit_col2 = st.columns([3, 1])
-with submit_col1:
-    submit = st.button("🚀 Step 4: Execute Playground Evaluation", type="primary", use_container_width=True)
-with submit_col2:
-    try:
-        default_pacing = float(os.getenv("GEMINI_PACING_DELAY", "2.0"))
-    except ValueError:
-        default_pacing = 2.0
-    sleep_delay = st.slider(
-        "Pacing Delay (sec)",
-        0.0, 10.0, default_pacing, 0.5,
-        help="Central pacing between API calls to respect rate limits."
-    )
+with g_col_left:
+    st.write("")
+    submit_col1, submit_col2 = st.columns([3, 1])
+    with submit_col1:
+        submit = st.button("🚀 Step 4: Execute Playground Evaluation", type="primary", use_container_width=True)
+    with submit_col2:
+        try:
+            default_pacing = float(os.getenv("GEMINI_PACING_DELAY", "2.0"))
+        except ValueError:
+            default_pacing = 2.0
+        sleep_delay = st.slider(
+            "Pacing Delay (sec)",
+            0.0, 10.0, default_pacing, 0.5,
+            help="Central pacing between API calls to respect rate limits."
+        )
 
 if submit:
     active_key = api_key_override.strip() or Config.GEMINI_API_KEY
@@ -346,7 +527,7 @@ if submit:
                     # Run live
                     agent = GeminiAgent(api_key=active_key, model_name=selected_model)
                     orchestrator = Orchestrator(agent=agent, db_manager=db_manager)
-                    
+                
                     result = orchestrator.execute(
                         query=user_query,
                         category=task_category,
@@ -540,3 +721,12 @@ if submit:
                 st.error(f"Playground execution failed: {str(e)}")
             finally:
                 db_manager.close()
+
+# Glossary at bottom of page
+st.write("---")
+with st.expander("📖 Reliability Glossary Definitions", expanded=False):
+    st.markdown("""
+    - **Reliability Score**: A composite weighted index combining 40% Objective Rules and 60% Subjective Critic LLM Grade.
+    - **Objective Score**: Pass/Fail metrics from deterministic parsing checks (regex, length, JSON syntax).
+    - **Subjective Score**: Fine-grained semantic grading and instruction-following checks by a Critic LLM.
+    """)

@@ -174,7 +174,10 @@ class Orchestrator:
                     required_fields=evaluation_config.get("required_fields"),
                     field_types=evaluation_config.get("field_types"),
                     forbidden_keywords=evaluation_config.get("forbidden_keywords"),
-                    max_length=evaluation_config.get("max_length")
+                    max_length=evaluation_config.get("max_length"),
+                    min_length=evaluation_config.get("min_length"),
+                    min_words=evaluation_config.get("min_words"),
+                    max_words=evaluation_config.get("max_words")
                 )
                 rule_score = rule_result.score
                 issues.extend(rule_result.issues)
@@ -221,8 +224,8 @@ class Orchestrator:
             final_issues = issues
 
             retry_count = attempt - 1
-            # Retry conditions: Harness ON, failed validation, and attempt counter under MAX_RETRIES limit
-            retry_triggered = not passed and retry_count < max_retries
+            # Retry conditions: Reliability score is below threshold AND at least one meaningful issue exists
+            retry_triggered = not passed and len(issues) > 0 and retry_count < max_retries
 
             # Log trace of attempt to evaluation_traces
             self.db_manager.log_trace(
@@ -267,6 +270,7 @@ class Orchestrator:
 
         # Save final result in run_logs
         status = "SUCCESS" if final_passed else "FAILED"
+
         self.db_manager.log_run_result(
             run_id=r_id,
             query_id=q_id,
