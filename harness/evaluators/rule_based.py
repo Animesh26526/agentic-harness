@@ -3,6 +3,7 @@ import re
 from typing import Any, List, Dict, Optional
 from harness.config import Config
 from harness.evaluators.base_evaluator import BaseEvaluator, EvaluationResult
+from harness.utils import compute_response_length
 
 class RuleBasedValidator(BaseEvaluator):
     """Deterministic structural and syntax rules validator with JSON type checking."""
@@ -106,12 +107,19 @@ class RuleBasedValidator(BaseEvaluator):
 
         # 2. Maximum Length Validation
         effective_max_length = kwargs.get("max_length") if kwargs.get("max_length") is not None else self.max_length
-        actual_len = len(generated_text)
+        actual_len = compute_response_length(generated_text)
+        
+        # Track under/over for UI panel
+        chars_over = 0
+        chars_under = 0
+        
         if effective_max_length is not None and effective_max_length > 0:
             if actual_len > effective_max_length:
-                exceeded = actual_len - effective_max_length
-                issues.append(f"Current length: {actual_len}. Maximum length: {effective_max_length}. Characters to remove: {exceeded}. You MUST remain under {effective_max_length} characters. This is a hard constraint.")
+                chars_over = actual_len - effective_max_length
+                issues.append(f"Current length: {actual_len}. Maximum length: {effective_max_length}. Characters to remove: {chars_over}. You MUST remain under {effective_max_length} characters. This is a hard constraint.")
                 score -= 0.3
+            else:
+                chars_under = effective_max_length - actual_len
 
         # Minimum Length Validation
         min_length = kwargs.get("min_length")
@@ -243,10 +251,14 @@ class RuleBasedValidator(BaseEvaluator):
             passed=passed,
             issues=issues,
             metadata={
-                "length": len(generated_text),
+                "length": actual_len,
                 "is_json": parsed_json is not None,
                 "schema_errors_count": schema_errors_count,
                 "missing_fields_count": missing_fields_count,
-                "type_errors_count": type_errors_count
+                "type_errors_count": type_errors_count,
+                "effective_max_length": effective_max_length,
+                "chars_over": chars_over,
+                "chars_under": chars_under,
+                "matched_keywords": matched_keywords if 'matched_keywords' in locals() else []
             }
         )

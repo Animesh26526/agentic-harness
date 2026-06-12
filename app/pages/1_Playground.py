@@ -615,6 +615,24 @@ if submit:
         db_manager = DatabaseManager(db_path=db_path)
         db_manager.initialize()
 
+        # TASK 4: Constraint Feasibility Detection
+        conflicts = []
+        if evaluation_config.get("min_words") and evaluation_config.get("max_length"):
+            if evaluation_config["min_words"] * 4 > evaluation_config["max_length"]:
+                conflicts.append("`min_words` may be incompatible with `max_length`. Words require multiple characters.")
+        if evaluation_config.get("min_length") and evaluation_config.get("max_length"):
+            if evaluation_config["min_length"] > evaluation_config["max_length"]:
+                conflicts.append("`min_length` is greater than `max_length`.")
+        if evaluation_config.get("min_words") and evaluation_config.get("max_words"):
+            if evaluation_config["min_words"] > evaluation_config["max_words"]:
+                conflicts.append("`min_words` is greater than `max_words`.")
+        if evaluation_config.get("validate_json") and evaluation_config.get("max_length"):
+            if evaluation_config["max_length"] < 15:
+                conflicts.append("`max_length` is too small to form valid JSON.")
+
+        if conflicts:
+            st.warning("⚠️ **Constraint Conflict Detected**: " + " | ".join(conflicts))
+
         with st.spinner("Executing evaluation pipeline..."):
             try:
                 # 1. Check SQLite Response Cache (Change 6)
@@ -665,21 +683,39 @@ if submit:
                     traces = [dict(t) for t in raw_traces]
                     
                     # Save Cache (Change 6)
-                    cache_data = {
-                        "query_id": result.query_id,
-                        "category": result.category,
-                        "raw_response": result.raw_response,
-                        "final_response": result.final_response,
-                        "semantic_score": result.semantic_score,
-                        "rule_score": result.rule_score,
-                        "critic_score": result.critic_score,
-                        "overall_score": result.overall_score,
-                        "retry_count": result.retry_count,
-                        "passed": result.passed,
-                        "issues": result.issues,
-                        "traces": traces
-                    }
-                    cache_manager.set(user_query, selected_model, harness_enabled, cache_data)
+                    cache_reason = ""
+                    should_cache = False
+                    
+                    if not harness_enabled:
+                        cache_reason = "Harness OFF"
+                    elif not result.passed:
+                        cache_reason = "Validation failed."
+                    elif result.overall_score < Config.RELIABILITY_THRESHOLD:
+                        cache_reason = "Reliability threshold not met."
+                    else:
+                        initial_score = traces[0]["overall_reliability"] if traces else 0
+                        if result.retry_count > 0 or result.overall_score > initial_score:
+                            should_cache = True
+                            cache_reason = "Harness intervention improved the final result."
+                        else:
+                            cache_reason = "No meaningful intervention occurred."
+                            
+                    if should_cache:
+                        cache_data = {
+                            "query_id": result.query_id,
+                            "category": result.category,
+                            "raw_response": result.raw_response,
+                            "final_response": result.final_response,
+                            "semantic_score": result.semantic_score,
+                            "rule_score": result.rule_score,
+                            "critic_score": result.critic_score,
+                            "overall_score": result.overall_score,
+                            "retry_count": result.retry_count,
+                            "passed": result.passed,
+                            "issues": result.issues,
+                            "traces": traces
+                        }
+                        cache_manager.set(user_query, selected_model, harness_enabled, cache_data)
                 
                 # Render UI Outcomes (Change 2)
                 st.write("---")
@@ -689,9 +725,16 @@ if submit:
                 
                 # Render Cache Criteria & Execution Source
                 st.markdown(f"**Execution Source**: `{'Cache' if cached_data else 'Live API'}`")
-                st.markdown(f"**Cache Criteria**: Query + Model (`{selected_model}`) + Harness (`{'ON' if harness_enabled else 'OFF'}`)")
                 
-                c_col1, c_col2, c_col3 = st.columns(3)
+                # Retrieve policy string
+                policy_str = "Harness ON AND Reliability >= 0.80 AND Validation Passed AND (Retry Occurred OR Score Improved)"
+                st.markdown(f"**Cache Criteria**: {policy_str}")
+                
+                c_reason_disp = "Harness intervention improved the final result." if cached_data else cache_reason
+                st.markdown(f"**Response Cached**: `{'✅ Yes' if cached_data or should_cache else '❌ No'}`")
+                st.markdown(f"**Cache Reason**: `{c_reason_disp}`")
+                
+                c_col1, c_col2 = st.columns(2)
                 
                 if cached_data:
                     # Cache Hit display
@@ -701,8 +744,6 @@ if submit:
                         st.markdown("<span class='badge badge-pass' style='font-size:1.1rem; padding:8px 16px;'>🟢 CACHE HIT</span>", unsafe_allow_html=True)
                     with c_col2:
                         st.metric("Saved API Calls", f"{saved_calls}", help="Number of model generation or critic evaluator queries bypassed.")
-                    with c_col3:
-                        st.metric("Saved Latency Estimate", f"{saved_latency:.1f}s", help="Estimated network and inference duration avoided.")
                 else:
                     # Cache Miss display
                     calls_made = 1 + result.retry_count
@@ -710,8 +751,6 @@ if submit:
                         st.markdown("<span class='badge badge-fail' style='background:rgba(59,130,246,0.2); border:1px solid rgba(59,130,246,0.4); color:#3B82F6; font-size:1.1rem; padding:8px 16px;'>🔵 CACHE MISS</span>", unsafe_allow_html=True)
                     with c_col2:
                         st.metric("API Calls Executed", f"{calls_made}", help="Total model generations and critic evaluations executed.")
-                    with c_col3:
-                        st.metric("Response Indexed", "Success", help="Response and full validation traces written to SQLite cache database.")
 
                 st.write("")
 
@@ -764,11 +803,11 @@ if submit:
                     if not harness_enabled:
                         rel_str = "N/A"
                     else:
-                        rel_str = f"{int(result.overall_score * 100)}/100"
+                        rel_str = f"{int(result.overall_score * 100)} / 100"
                         
                     st.markdown(f"""
                     <div class="kpi-card" title="Composite score representing final overall compliance rate.">
-                        <div class="kpi-label">Reliability Score</div>
+                        <div class="kpi-label">Reliability</div>
                         <div class="kpi-val">{rel_str}</div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -796,6 +835,92 @@ if submit:
                         evaluation_config=evaluation_config
                     )
                     st.markdown(explanation_html, unsafe_allow_html=True)
+
+                # Objective Rules Validation Debug Panel
+                st.write("")
+                st.markdown("### 🛡️ Deterministic Validation Report")
+                from harness.evaluators.rule_based import RuleBasedValidator
+                debug_validator = RuleBasedValidator()
+                debug_res = debug_validator.evaluate(
+                    generated_text=result.final_response if result.final_response else "",
+                    validate_json=evaluation_config.get("validate_json", False),
+                    required_fields=evaluation_config.get("required_fields"),
+                    field_types=evaluation_config.get("field_types"),
+                    forbidden_keywords=evaluation_config.get("forbidden_keywords"),
+                    max_length=evaluation_config.get("max_length"),
+                    min_length=evaluation_config.get("min_length"),
+                    min_words=evaluation_config.get("min_words"),
+                    max_words=evaluation_config.get("max_words")
+                )
+                debug_meta = debug_res.metadata
+
+                # Length rules
+                actual_len = debug_meta.get("length", 0)
+                max_len = evaluation_config.get("max_length", 0)
+                if max_len and max_len > 0:
+                    status_len = "✅ PASS" if actual_len <= max_len else "🔴 FAIL"
+                    chars_over = max(0, actual_len - max_len)
+                    chars_under = max(0, max_len - actual_len)
+                    if actual_len <= max_len:
+                        len_content = f"Actual Length: {actual_len}<br>Limit: {max_len}<br>Remaining: {chars_under}"
+                    else:
+                        len_content = f"Actual Length: {actual_len}<br>Limit: {max_len}<br>Exceeded By: {chars_over}"
+                else:
+                    status_len = "⚪ N/A"
+                    len_content = "Not Required"
+                    
+                # Keyword Constraints
+                matched_kws = debug_meta.get("matched_keywords", [])
+                forb_kws = evaluation_config.get("forbidden_keywords", [])
+                if forb_kws:
+                    status_kw = "🔴 FAIL" if matched_kws else "✅ PASS"
+                    if matched_kws:
+                        kw_content = f"Matches Found:<br>{', '.join(matched_kws)}"
+                    else:
+                        kw_content = f"Forbidden Keywords:<br>{', '.join(forb_kws)}<br><br>Matches Found:<br>None"
+                else:
+                    status_kw = "⚪ N/A"
+                    kw_content = "Not Required"
+                
+                # JSON Validation
+                val_json = evaluation_config.get("validate_json", False)
+                is_json = debug_meta.get("is_json", False)
+                if val_json:
+                    status_json = "✅ PASS" if is_json else "🔴 FAIL"
+                    json_content = "Valid JSON Structure" if is_json else "Invalid JSON Structure"
+                else:
+                    status_json = "⚪ N/A"
+                    json_content = "Not Required"
+                
+                # Render Validation Cards
+                v_col1, v_col2, v_col3 = st.columns(3)
+                
+                with v_col1:
+                    st.markdown(f"""
+                    <div class="kpi-card" style="height: 100%;">
+                        <div class="kpi-label">Character Limit</div>
+                        <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">{status_len}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-color);">{len_content}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                with v_col2:
+                    st.markdown(f"""
+                    <div class="kpi-card" style="height: 100%;">
+                        <div class="kpi-label">Keywords</div>
+                        <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">{status_kw}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-color);">{kw_content}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                with v_col3:
+                    st.markdown(f"""
+                    <div class="kpi-card" style="height: 100%;">
+                        <div class="kpi-label">JSON Validation</div>
+                        <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">{status_json}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-color);">{json_content}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 
                 # Below: Retry Trace Timeline (Change 2)
                 if harness_enabled and len(traces) > 0:
