@@ -241,7 +241,6 @@ with col_p1:
         st.session_state.min_words = 0
         st.session_state.max_words = 0
         st.session_state.eval_result = None
-        st.rerun()
         
 with col_p2:
     if st.button("🚫 Constraint Following", use_container_width=True):
@@ -258,7 +257,6 @@ with col_p2:
         st.session_state.min_words = 0
         st.session_state.max_words = 0
         st.session_state.eval_result = None
-        st.rerun()
 
 with col_p3:
     if st.button("📖 Grounded QA", use_container_width=True):
@@ -275,7 +273,6 @@ with col_p3:
         st.session_state.min_words = 0
         st.session_state.max_words = 0
         st.session_state.eval_result = None
-        st.rerun()
 
 with col_p4:
     if st.button("🔍 Info Extraction", use_container_width=True):
@@ -292,7 +289,6 @@ with col_p4:
         st.session_state.min_words = 0
         st.session_state.max_words = 0
         st.session_state.eval_result = None
-        st.rerun()
 
 with col_p5:
     if st.button("🔢 Math Reasoning", use_container_width=True):
@@ -309,7 +305,6 @@ with col_p5:
         st.session_state.min_words = 0
         st.session_state.max_words = 0
         st.session_state.eval_result = None
-        st.rerun()
 
 with col_p6:
     if st.button("🎲 Random Case", use_container_width=True):
@@ -345,7 +340,6 @@ with col_p6:
                 )
                 
                 st.session_state.eval_result = None
-                st.rerun()
         except Exception as e:
             st.error(f"Could not load random case: {e}")
 
@@ -379,7 +373,10 @@ if challenge_dataset_path.exists():
         st.session_state.required_fields = ", ".join(req_f) if isinstance(req_f, list) else str(req_f)
         forb_k = ch_config.get("forbidden_keywords", [])
         st.session_state.forbidden_keywords = ", ".join(forb_k) if isinstance(forb_k, list) else str(forb_k)
-        st.session_state.reference_text = ch_config.get("reference_text", selected_challenge.get("expected_output", ""))
+        if selected_challenge["category"] in ["factual_qa", "extraction_math"]:
+            st.session_state.reference_text = ch_config.get("reference_text", selected_challenge.get("expected_output", ""))
+        else:
+            st.session_state.reference_text = ch_config.get("reference_text", "")
         st.session_state.max_length = ch_config.get("max_length", 0)
         st.session_state.min_length = ch_config.get("min_length", 0)
         st.session_state.min_words = ch_config.get("min_words", 0)
@@ -394,7 +391,6 @@ if challenge_dataset_path.exists():
             or ch_config.get("min_words", 0) > 0 
             or ch_config.get("max_words", 0) > 0
         )
-        st.rerun()
 
 st.write("---")
 
@@ -588,8 +584,12 @@ with g_col_left:
         
     st.write("")
     submit_col1, submit_col2 = st.columns([3, 1])
+    def collapse_expanders():
+        st.session_state.expand_json = False
+        st.session_state.expand_keyword = False
+
     with submit_col1:
-        submit = st.button("🚀 Step 4: Execute Playground Evaluation", type="primary", use_container_width=True)
+        submit = st.button("🚀 Step 4: Execute Playground Evaluation", type="primary", use_container_width=True, on_click=collapse_expanders)
     with submit_col2:
         try:
             default_pacing = float(os.getenv("GEMINI_PACING_DELAY", "2.0"))
@@ -803,7 +803,7 @@ if submit:
                     if not harness_enabled:
                         rel_str = "N/A"
                     else:
-                        rel_str = f"{int(result.overall_score * 100)} / 100"
+                        rel_str = f"{result.overall_score:.3f}"
                         
                     st.markdown(f"""
                     <div class="kpi-card" title="Composite score representing final overall compliance rate.">
@@ -893,34 +893,27 @@ if submit:
                     json_content = "Not Required"
                 
                 # Render Validation Cards
-                v_col1, v_col2, v_col3 = st.columns(3)
-                
-                with v_col1:
-                    st.markdown(f"""
-                    <div class="kpi-card" style="height: 100%;">
-                        <div class="kpi-label">Character Limit</div>
-                        <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">{status_len}</div>
-                        <div style="font-size: 0.9rem; color: var(--text-color);">{len_content}</div>
+                st.markdown(f"""
+                <div class="kpi-card" style="margin-top: 8px;">
+                    <div style="display: flex; justify-content: space-around; text-align: center; flex-wrap: wrap; gap: 16px;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="kpi-label">Character Limit</div>
+                            <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">{status_len}</div>
+                            <div style="font-size: 0.9rem; color: var(--text-color);">{len_content}</div>
+                        </div>
+                        <div style="flex: 1; min-width: 200px; border-left: 1px solid rgba(0, 242, 254, 0.2); border-right: 1px solid rgba(0, 242, 254, 0.2); padding: 0 16px;">
+                            <div class="kpi-label">Keywords</div>
+                            <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">{status_kw}</div>
+                            <div style="font-size: 0.9rem; color: var(--text-color);">{kw_content}</div>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="kpi-label">JSON Validation</div>
+                            <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">{status_json}</div>
+                            <div style="font-size: 0.9rem; color: var(--text-color);">{json_content}</div>
+                        </div>
                     </div>
-                    """, unsafe_allow_html=True)
-                    
-                with v_col2:
-                    st.markdown(f"""
-                    <div class="kpi-card" style="height: 100%;">
-                        <div class="kpi-label">Keywords</div>
-                        <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">{status_kw}</div>
-                        <div style="font-size: 0.9rem; color: var(--text-color);">{kw_content}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                with v_col3:
-                    st.markdown(f"""
-                    <div class="kpi-card" style="height: 100%;">
-                        <div class="kpi-label">JSON Validation</div>
-                        <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">{status_json}</div>
-                        <div style="font-size: 0.9rem; color: var(--text-color);">{json_content}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                </div>
+                """, unsafe_allow_html=True)
                 
                 # Below: Retry Trace Timeline (Change 2)
                 if harness_enabled and len(traces) > 0:
@@ -1050,11 +1043,3 @@ if submit:
             finally:
                 db_manager.close()
 
-# Glossary at bottom of page
-st.write("---")
-with st.expander("📖 Reliability Glossary Definitions", expanded=False):
-    st.markdown("""
-    - **Reliability Score**: A composite weighted index combining 40% Objective Rules and 60% Subjective Critic LLM Grade.
-    - **Objective Score**: Pass/Fail metrics from deterministic parsing checks (regex, length, JSON syntax).
-    - **Subjective Score**: Fine-grained semantic grading and instruction-following checks by a Critic LLM.
-    """)
