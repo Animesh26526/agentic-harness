@@ -580,7 +580,7 @@ with st.expander("🧪 Run New Live Benchmark Experiment", expanded=False):
     with col_run1:
         selected_model = st.selectbox(
             "Evaluation Model Target",
-            options=["Gemini 2.5 Flash Lite", "Gemini 2.5 Flash", "Gemma 4 26B", "Gemma 4 31B", "Llama 3.1 8B Instant"],
+            options=["Llama 3.1 8B Instant", "Gemini 2.5 Flash Lite", "Gemini 2.5 Flash", "Gemma 4 26B", "Gemma 4 31B"],
             index=0,
             help="The model to test throughout this benchmark experiment."
         )

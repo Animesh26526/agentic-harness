@@ -30,7 +30,7 @@ class AppConfig:
         default_factory=lambda: os.getenv("OPENROUTER_API_KEY", "")
     )
     DEFAULT_GEMINI_MODEL: str = field(
-        default_factory=lambda: os.getenv("DEFAULT_GEMINI_MODEL", "gemini-2.5-flash-lite")
+        default_factory=lambda: os.getenv("DEFAULT_GEMINI_MODEL", "Llama 3.1 8B Instant")
     )
     MODEL_PROVIDER: str = field(
         default_factory=lambda: os.getenv("MODEL_PROVIDER", "google")

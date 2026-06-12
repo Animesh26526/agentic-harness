@@ -98,6 +98,7 @@ class RuleBasedValidator(BaseEvaluator):
                 issues=["Response is empty."],
                 metadata={
                     "length": 0,
+                    "actual_words": 0,
                     "is_json": False,
                     "schema_errors_count": 0,
                     "missing_fields_count": 0,
@@ -193,7 +194,8 @@ class RuleBasedValidator(BaseEvaluator):
                         passed=False,
                         issues=issues,
                         metadata={
-                            "length": len(generated_text),
+                            "length": actual_len,
+                            "actual_words": actual_words,
                             "is_json": False,
                             "schema_errors_count": schema_errors_count,
                             "missing_fields_count": missing_fields_count,
@@ -252,6 +254,7 @@ class RuleBasedValidator(BaseEvaluator):
             issues=issues,
             metadata={
                 "length": actual_len,
+                "actual_words": actual_words,
                 "is_json": parsed_json is not None,
                 "schema_errors_count": schema_errors_count,
                 "missing_fields_count": missing_fields_count,

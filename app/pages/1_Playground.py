@@ -224,95 +224,57 @@ if 'eval_config' not in st.session_state:
 # Presets Quick Buttons (Change 4 & Preset UX Improvements)
 st.write("")
 st.markdown("⚡ **Quick Demo Presets:** Click one to instantly load a test case:")
-col_p1, col_p2, col_p3, col_p4, col_p5, col_p6 = st.columns(6)
-
-with col_p1:
-    if st.button("📝 JSON Generation", use_container_width=True):
-        st.session_state.user_query = "Generate a customer profile for a client named Alice who is 30 years old and lives in Boston. Output MUST be valid JSON with keys 'name' (string), 'age' (integer), and 'city' (string)."
-        st.session_state.task_category = "structured_json"
-        st.session_state.validate_json = True
-        st.session_state.required_fields = "name, age, city"
-        st.session_state.forbidden_keywords = ""
-        st.session_state.reference_text = ""
-        st.session_state.expand_json = True
-        st.session_state.expand_keyword = False
-        st.session_state.max_length = 0
-        st.session_state.min_length = 0
-        st.session_state.min_words = 0
-        st.session_state.max_words = 0
-        st.session_state.eval_result = None
+try:
+    with open(PROJECT_ROOT / "data" / "clean_benchmark_dataset.json", "r") as f:
+        demo_data = json.load(f)
         
-with col_p2:
-    if st.button("🚫 Constraint Following", use_container_width=True):
-        st.session_state.user_query = "Write a short product description of a smartphone. Do NOT use the word 'expensive', 'phone', 'smart', 'device', 'mobile', or 'handset'. Keep the response under 100 characters."
-        st.session_state.task_category = "constraint_following"
-        st.session_state.validate_json = False
-        st.session_state.required_fields = ""
-        st.session_state.forbidden_keywords = "expensive, phone, smart, device, mobile, handset"
-        st.session_state.reference_text = ""
-        st.session_state.expand_json = False
-        st.session_state.expand_keyword = True
-        st.session_state.max_length = 100
-        st.session_state.min_length = 0
-        st.session_state.min_words = 0
-        st.session_state.max_words = 0
-        st.session_state.eval_result = None
-
-with col_p3:
-    if st.button("📖 Grounded QA", use_container_width=True):
-        st.session_state.user_query = "Who developed the Python programming language?"
-        st.session_state.task_category = "factual_qa"
-        st.session_state.validate_json = False
-        st.session_state.required_fields = ""
-        st.session_state.forbidden_keywords = ""
-        st.session_state.reference_text = "Guido van Rossum developed Python and released it in 1991."
-        st.session_state.expand_json = False
-        st.session_state.expand_keyword = False
-        st.session_state.max_length = 0
-        st.session_state.min_length = 0
-        st.session_state.min_words = 0
-        st.session_state.max_words = 0
-        st.session_state.eval_result = None
-
-with col_p4:
-    if st.button("🔍 Info Extraction", use_container_width=True):
-        st.session_state.user_query = "Extract the birth year of Albert Einstein from: Albert Einstein was born on 14 March 1879."
-        st.session_state.task_category = "extraction_math"
-        st.session_state.validate_json = False
-        st.session_state.required_fields = ""
-        st.session_state.forbidden_keywords = ""
-        st.session_state.reference_text = "1879"
-        st.session_state.expand_json = False
-        st.session_state.expand_keyword = False
-        st.session_state.max_length = 0
-        st.session_state.min_length = 0
-        st.session_state.min_words = 0
-        st.session_state.max_words = 0
-        st.session_state.eval_result = None
-
-with col_p5:
-    if st.button("🔢 Math Reasoning", use_container_width=True):
-        st.session_state.user_query = "What is 15 multiplied by 8?"
-        st.session_state.task_category = "extraction_math"
-        st.session_state.validate_json = False
-        st.session_state.required_fields = ""
-        st.session_state.forbidden_keywords = ""
-        st.session_state.reference_text = "15 * 8 = 120"
-        st.session_state.expand_json = False
-        st.session_state.expand_keyword = False
-        st.session_state.max_length = 0
-        st.session_state.min_length = 0
-        st.session_state.min_words = 0
-        st.session_state.max_words = 0
-        st.session_state.eval_result = None
-
-with col_p6:
-    if st.button("🎲 Random Case", use_container_width=True):
-        try:
-            with open(PROJECT_ROOT / "data" / "clean_challenge_dataset.json", "r") as f:
-                data = json.load(f)
-                case = random.choice(data)
-                st.session_state.user_query = case.get("prompt", "")
+    # Group cases by category
+    cases_by_category = {
+        "JSON Generation": [],
+        "Constraint Following": [],
+        "Grounded QA": [],
+        "Info Extraction": [],
+        "Math Reasoning": []
+    }
+    for case in demo_data:
+        cat = case.get("category", "Unknown")
+        if cat == "structured_json":
+            cases_by_category["JSON Generation"].append(case)
+        elif cat == "constraint_following":
+            cases_by_category["Constraint Following"].append(case)
+        elif cat == "factual_qa":
+            cases_by_category["Grounded QA"].append(case)
+        elif cat == "extraction_math":
+            if "extract" in case.get("input", "").lower():
+                cases_by_category["Info Extraction"].append(case)
+            else:
+                cases_by_category["Math Reasoning"].append(case)
+                
+    cases_by_category = {k: v for k, v in cases_by_category.items() if len(v) > 0}
+    categories = list(cases_by_category.keys())
+    
+    col_p1, col_p2, col_p3 = st.columns([2, 3, 1])
+    
+    with col_p1:
+        selected_preset_cat = st.selectbox(
+            "Select Category",
+            options=categories
+        )
+        
+    with col_p2:
+        category_cases = cases_by_category.get(selected_preset_cat, [])
+        selected_preset_case = st.selectbox(
+            "Select Case",
+            options=category_cases,
+            format_func=lambda x: f"{x['query_id']}: {x['input'][:50]}..."
+        )
+        
+    with col_p3:
+        st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+        if st.button("⚡ Load Preset", use_container_width=True):
+            if selected_preset_case:
+                case = selected_preset_case
+                st.session_state.user_query = case.get("input", "")
                 st.session_state.task_category = case.get("category", "structured_json")
                 cfg = case.get("evaluation_config", {})
                 st.session_state.validate_json = cfg.get("validate_json", False)
@@ -323,14 +285,17 @@ with col_p6:
                 forb_kw = cfg.get("forbidden_keywords", [])
                 st.session_state.forbidden_keywords = ", ".join(forb_kw) if isinstance(forb_kw, list) else str(forb_kw)
                 
-                st.session_state.reference_text = cfg.get("reference_text", "")
-                st.session_state.expand_json = st.session_state.validate_json
-                
+                if case["category"] in ["factual_qa", "extraction_math"]:
+                    st.session_state.reference_text = cfg.get("reference_text", case.get("expected_output", ""))
+                else:
+                    st.session_state.reference_text = cfg.get("reference_text", "")
+                    
                 st.session_state.max_length = cfg.get("max_length", 0)
                 st.session_state.min_length = cfg.get("min_length", 0)
                 st.session_state.min_words = cfg.get("min_words", 0)
                 st.session_state.max_words = cfg.get("max_words", 0)
                 
+                st.session_state.expand_json = bool(cfg.get("validate_json", False))
                 st.session_state.expand_keyword = (
                     bool(st.session_state.forbidden_keywords) or 
                     st.session_state.max_length > 0 or 
@@ -340,8 +305,9 @@ with col_p6:
                 )
                 
                 st.session_state.eval_result = None
-        except Exception as e:
-            st.error(f"Could not load random case: {e}")
+
+except Exception as e:
+    st.error(f"Could not load demo presets: {e}")
 
 st.write("---")
 
@@ -412,9 +378,9 @@ with g_col_left:
     # Step 2: Choose Model
     st.markdown("<div class='step-header'>Step 2: Choose Model</div>", unsafe_allow_html=True)
     model_options = [
+        "Llama 3.1 8B Instant",
         "Gemma 4 26B",
         "Gemma 4 31B",
-        "Llama 3.1 8B Instant",
         "Gemini 2.5 Flash"
     ]
     selected_model = st.selectbox(
@@ -854,17 +820,56 @@ if submit:
                 )
                 debug_meta = debug_res.metadata
 
-                # Length rules
+                # Length constraints
                 actual_len = debug_meta.get("length", 0)
-                max_len = evaluation_config.get("max_length", 0)
-                if max_len and max_len > 0:
-                    status_len = "✅ PASS" if actual_len <= max_len else "🔴 FAIL"
-                    chars_over = max(0, actual_len - max_len)
-                    chars_under = max(0, max_len - actual_len)
-                    if actual_len <= max_len:
-                        len_content = f"Actual Length: {actual_len}<br>Limit: {max_len}<br>Remaining: {chars_under}"
-                    else:
-                        len_content = f"Actual Length: {actual_len}<br>Limit: {max_len}<br>Exceeded By: {chars_over}"
+                actual_words = debug_meta.get("actual_words", 0)
+                
+                max_len = evaluation_config.get("max_length")
+                min_len = evaluation_config.get("min_length")
+                max_words = evaluation_config.get("max_words")
+                min_words = evaluation_config.get("min_words")
+                
+                constraints_active = any([
+                    max_len and max_len > 0, 
+                    min_len and min_len > 0, 
+                    max_words and max_words > 0, 
+                    min_words and min_words > 0
+                ])
+                
+                if constraints_active:
+                    pass_all = True
+                    len_content_lines = []
+                    
+                    if max_len and max_len > 0:
+                        if actual_len <= max_len:
+                            len_content_lines.append(f"Max Chars: {actual_len}/{max_len} ✅")
+                        else:
+                            len_content_lines.append(f"Max Chars: {actual_len}/{max_len} ❌")
+                            pass_all = False
+                    
+                    if min_len and min_len > 0:
+                        if actual_len >= min_len:
+                            len_content_lines.append(f"Min Chars: {actual_len} (Need {min_len}) ✅")
+                        else:
+                            len_content_lines.append(f"Min Chars: {actual_len} (Need {min_len}) ❌")
+                            pass_all = False
+                            
+                    if max_words and max_words > 0:
+                        if actual_words <= max_words:
+                            len_content_lines.append(f"Max Words: {actual_words}/{max_words} ✅")
+                        else:
+                            len_content_lines.append(f"Max Words: {actual_words}/{max_words} ❌")
+                            pass_all = False
+                            
+                    if min_words and min_words > 0:
+                        if actual_words >= min_words:
+                            len_content_lines.append(f"Min Words: {actual_words} (Need {min_words}) ✅")
+                        else:
+                            len_content_lines.append(f"Min Words: {actual_words} (Need {min_words}) ❌")
+                            pass_all = False
+                            
+                    status_len = "✅ PASS" if pass_all else "🔴 FAIL"
+                    len_content = "<br>".join(len_content_lines)
                 else:
                     status_len = "⚪ N/A"
                     len_content = "Not Required"
@@ -897,7 +902,7 @@ if submit:
                 <div class="kpi-card" style="margin-top: 8px;">
                     <div style="display: flex; justify-content: space-around; text-align: center; flex-wrap: wrap; gap: 16px;">
                         <div style="flex: 1; min-width: 200px;">
-                            <div class="kpi-label">Character Limit</div>
+                            <div class="kpi-label">Length Constraints</div>
                             <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">{status_len}</div>
                             <div style="font-size: 0.9rem; color: var(--text-color);">{len_content}</div>
                         </div>
@@ -951,9 +956,9 @@ if submit:
                             if issues_list:
                                 st.markdown("<span style='color:#EF4444; font-weight:bold;'>Violations:</span>", unsafe_allow_html=True)
                                 for issue in issues_list:
-                                    st.checkbox(f"❌ {issue}", value=False, disabled=True, key=f"issue_{idx}_{uuid.uuid4().hex[:8]}")
+                                    st.write(f"❌ {issue}")
                             else:
-                                st.checkbox("✅ All verification rules passed successfully.", value=True, disabled=True, key=f"pass_{idx}")
+                                st.write("✅ All verification rules passed successfully.")
                             
                             # Critic Transparency (Expose Critic Rationale/Reasoning)
                             if trace.get("critic_feedback"):
