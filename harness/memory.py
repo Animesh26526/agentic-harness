@@ -1,36 +1,16 @@
-import os
 import sqlite3
 import json
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, asdict
-from harness.config import Config
+import os
+from datetime import datetime
+from typing import List, Dict, Any
 
-@dataclass
-class EvaluationMemory:
-    """Represents a stored evaluation memory containing prompt, response, scores, issues, and corrections."""
-    prompt: str
-    response: str
-    semantic_score: Optional[float]
-    rule_score: Optional[float]
-    critic_score: Optional[float]
-    overall_score: float
-    issues: List[str]
-    corrections: List[str]
-    timestamp: Optional[str] = None
-    id: Optional[int] = None
-
-class MemoryManager:
+class HarnessMemory:
     """
-    Interface and SQLite implementation for managing prior evaluation memories.
-    Serves as the foundation for future context reuse and semantic embedding search.
+    Agentic Harness V2 - Harness Memory System.
+    Stores failure patterns to successful repair strategies.
+    Does NOT store prompts or responses.
     """
     def __init__(self, db_path: str = "harness_metrics.db"):
-        """
-        Initializes the MemoryManager.
-        
-        Args:
-            db_path (str): Path to the SQLite database.
-        """
         if not os.path.isabs(db_path):
             project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
             db_path = os.path.join(project_root, db_path)
@@ -38,7 +18,6 @@ class MemoryManager:
         self._initialize_db()
 
     def _initialize_db(self) -> None:
-        """Creates the memory table if it does not already exist."""
         db_dir = os.path.dirname(os.path.abspath(self.db_path))
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
@@ -47,175 +26,159 @@ class MemoryManager:
         try:
             with conn:
                 conn.execute("""
-                    CREATE TABLE IF NOT EXISTS harness_memory (
+                    CREATE TABLE IF NOT EXISTS memory_entries (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        prompt TEXT NOT NULL,
-                        response TEXT NOT NULL,
-                        semantic_score REAL,
-                        rule_score REAL,
-                        critic_score REAL,
-                        overall_score REAL NOT NULL,
-                        issues TEXT NOT NULL,          -- JSON string representing list of issues
-                        corrections TEXT NOT NULL,     -- JSON string representing list of corrections/retry feedback
-                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                        failure_type TEXT,
+                        subtype TEXT,
+                        metadata_json TEXT,
+                        repair_strategy TEXT,
+                        example_before TEXT,
+                        example_after TEXT,
+                        success_count INTEGER DEFAULT 0,
+                        failure_count INTEGER DEFAULT 0,
+                        success_rate REAL DEFAULT 0.0,
+                        created_at TEXT
                     );
                 """)
         finally:
             conn.close()
 
-    def store_evaluation(
-        self,
-        prompt: str,
-        response: str,
-        semantic_score: Optional[float],
-        rule_score: Optional[float],
-        critic_score: Optional[float],
-        overall_score: float,
-        issues: List[str],
-        corrections: List[str]
-    ) -> int:
+    def detect_failure_patterns(self, issues: List[str], rule_metadata: Dict, critic_metadata: Dict) -> List[Dict]:
         """
-        Stores an evaluation run into memory.
-
-        Args:
-            prompt (str): The initial user query/prompt.
-            response (str): The final generated response.
-            semantic_score (Optional[float]): The semantic evaluation score.
-            rule_score (Optional[float]): The rule-based evaluation score.
-            critic_score (Optional[float]): The LLM critic evaluation score.
-            overall_score (float): The final overall reliability score.
-            issues (List[str]): List of issues identified during validation.
-            corrections (List[str]): List of correction actions or suggestions made.
-
-        Returns:
-            int: The inserted record ID.
+        Parses issues to detect explicit failure patterns.
+        Supported types: max_length_exceeded, min_length_not_met, forbidden_keyword, 
+        required_field_missing, invalid_json, hallucination, fictional_entity, contradiction.
         """
-        conn = sqlite3.connect(self.db_path)
-        try:
-            with conn:
-                cursor = conn.execute(
-                    """
-                    INSERT INTO harness_memory (
-                        prompt, response, semantic_score, rule_score, critic_score,
-                        overall_score, issues, corrections
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        prompt,
-                        response,
-                        semantic_score,
-                        rule_score,
-                        critic_score,
-                        overall_score,
-                        json.dumps(issues),
-                        json.dumps(corrections)
-                    )
-                )
-                return cursor.lastrowid
-        finally:
-            conn.close()
+        patterns = []
+        issues_str = " ".join(issues).lower()
+        
+        # Rule validation checks
+        if "maximum length exceeded" in issues_str or "exceeds maximum length" in issues_str:
+            diff = rule_metadata.get("length_difference", 0)
+            patterns.append({
+                "failure_type": "max_length_exceeded",
+                "metadata": {"difference": diff}
+            })
+            
+        if "minimum length not met" in issues_str or "too short" in issues_str:
+            patterns.append({
+                "failure_type": "min_length_not_met",
+                "metadata": {}
+            })
+            
+        if "forbidden keyword" in issues_str or "contains forbidden" in issues_str:
+            patterns.append({
+                "failure_type": "forbidden_keyword",
+                "metadata": {}
+            })
+            
+        if "missing required field" in issues_str or "required field" in issues_str:
+            patterns.append({
+                "failure_type": "required_field_missing",
+                "metadata": {}
+            })
+            
+        if "invalid json" in issues_str or "json parsing failed" in issues_str:
+            patterns.append({
+                "failure_type": "invalid_json",
+                "metadata": {}
+            })
+            
+        # Semantic/Critic checks
+        if "hallucination" in issues_str or "not supported by reference" in issues_str:
+            patterns.append({
+                "failure_type": "hallucination",
+                "metadata": {}
+            })
+            
+        if "fictional entity" in issues_str:
+            patterns.append({
+                "failure_type": "fictional_entity",
+                "metadata": {}
+            })
+            
+        if "contradiction" in issues_str or "contradicts" in issues_str:
+            patterns.append({
+                "failure_type": "contradiction",
+                "metadata": {}
+            })
 
-    def retrieve_memories(self, limit: int = 20) -> List[EvaluationMemory]:
-        """
-        Retrieves the most recent stored evaluations from memory.
+        return patterns
 
-        Args:
-            limit (int): The maximum number of entries to retrieve.
-
-        Returns:
-            List[EvaluationMemory]: A list of EvaluationMemory dataclass objects.
-        """
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        try:
-            cursor = conn.execute(
-                """
-                SELECT id, prompt, response, semantic_score, rule_score, critic_score,
-                       overall_score, issues, corrections, timestamp
-                FROM harness_memory
-                ORDER BY timestamp DESC
-                LIMIT ?
-                """,
-                (limit,)
-            )
-            memories = []
-            for row in cursor.fetchall():
-                try:
-                    issues_list = json.loads(row["issues"])
-                except Exception:
-                    issues_list = []
-                try:
-                    corrections_list = json.loads(row["corrections"])
-                except Exception:
-                    corrections_list = []
-
-                memories.append(
-                    EvaluationMemory(
-                        id=row["id"],
-                        prompt=row["prompt"],
-                        response=row["response"],
-                        semantic_score=row["semantic_score"],
-                        rule_score=row["rule_score"],
-                        critic_score=row["critic_score"],
-                        overall_score=row["overall_score"],
-                        issues=issues_list,
-                        corrections=corrections_list,
-                        timestamp=row["timestamp"]
-                    )
-                )
-            return memories
-        finally:
-            conn.close()
-
-    def find_similar_memory(self, prompt: str) -> Optional[EvaluationMemory]:
-        """
-        Performs a basic exact or substring match search in SQLite memory.
-        Serves as the placeholder interface for future embedding similarity search.
-
-        Args:
-            prompt (str): The prompt string to query.
-
-        Returns:
-            Optional[EvaluationMemory]: The closest matching memory if found.
-        """
+    def search(self, failure_patterns: List[Dict], limit: int = 3) -> List[Dict]:
+        """Retrieves successful repair strategies for the given failure patterns."""
+        if not failure_patterns:
+            return []
+            
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
-        try:
-            # Simple exact or substring search
-            cursor = conn.execute(
-                """
-                SELECT id, prompt, response, semantic_score, rule_score, critic_score,
-                       overall_score, issues, corrections, timestamp
-                FROM harness_memory
-                WHERE prompt = ? OR ? LIKE '%' || prompt || '%'
-                ORDER BY timestamp DESC
-                LIMIT 1
-                """,
-                (prompt, prompt)
-            )
+        cursor = conn.cursor()
+        
+        types = [p["failure_type"] for p in failure_patterns]
+        placeholders = ",".join("?" for _ in types)
+        
+        cursor.execute(f'''
+            SELECT repair_strategy, success_rate, success_count 
+            FROM memory_entries
+            WHERE failure_type IN ({placeholders}) AND success_count > 0
+            ORDER BY success_rate DESC, success_count DESC
+            LIMIT ?
+        ''', (*types, limit))
+        
+        results = [{"repair_strategy": row["repair_strategy"], "success_rate": row["success_rate"]} for row in cursor.fetchall()]
+        conn.close()
+        return results
+
+    def store_repair(self, failure_patterns: List[Dict], repair_strategy: str, example_before: str = "", example_after: str = ""):
+        """Stores or updates a repair strategy upon a successful retry."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        for pattern in failure_patterns:
+            f_type = pattern["failure_type"]
+            meta_json = json.dumps(pattern.get("metadata", {}))
+            
+            cursor.execute('''
+                SELECT id, success_count, failure_count FROM memory_entries 
+                WHERE failure_type = ? AND repair_strategy = ?
+            ''', (f_type, repair_strategy))
             row = cursor.fetchone()
+            
             if row:
-                try:
-                    issues_list = json.loads(row["issues"])
-                except Exception:
-                    issues_list = []
-                try:
-                    corrections_list = json.loads(row["corrections"])
-                except Exception:
-                    corrections_list = []
+                new_success = row[1] + 1
+                failure_count = row[2]
+                new_rate = float(new_success) / (new_success + failure_count)
+                cursor.execute('''
+                    UPDATE memory_entries 
+                    SET success_count = ?, success_rate = ?
+                    WHERE id = ?
+                ''', (new_success, new_rate, row[0]))
+            else:
+                cursor.execute('''
+                    INSERT INTO memory_entries (failure_type, metadata_json, repair_strategy, example_before, example_after, success_count, failure_count, success_rate, created_at)
+                    VALUES (?, ?, ?, ?, ?, 1, 0, 1.0, ?)
+                ''', (f_type, meta_json, repair_strategy, example_before, example_after, datetime.utcnow().isoformat()))
+                
+        conn.commit()
+        conn.close()
 
-                return EvaluationMemory(
-                    id=row["id"],
-                    prompt=row["prompt"],
-                    response=row["response"],
-                    semantic_score=row["semantic_score"],
-                    rule_score=row["rule_score"],
-                    critic_score=row["critic_score"],
-                    overall_score=row["overall_score"],
-                    issues=issues_list,
-                    corrections=corrections_list,
-                    timestamp=row["timestamp"]
-                )
-            return None
-        finally:
-            conn.close()
+    def get_stats(self) -> Dict:
+        """Fetch memory stats for Dashboard/Playground UI."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT COUNT(*) FROM memory_entries")
+        total = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT failure_type, SUM(success_count) as c FROM memory_entries GROUP BY failure_type ORDER BY c DESC LIMIT 5")
+        failures = [{"type": row[0], "count": row[1]} for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT repair_strategy, success_rate FROM memory_entries WHERE success_count > 0 ORDER BY success_rate DESC, success_count DESC LIMIT 5")
+        top_strategies = [{"strategy": row[0], "success_rate": row[1]} for row in cursor.fetchall()]
+        
+        conn.close()
+        return {
+            "total_entries": total,
+            "most_common_failures": failures,
+            "top_strategies": top_strategies
+        }

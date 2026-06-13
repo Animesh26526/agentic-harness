@@ -10,6 +10,7 @@ from harness.evaluators.semantic import SemanticEvaluator, warmup
 from harness.evaluators.rule_based import RuleBasedValidator
 from harness.evaluators.critic import CriticEvaluator
 from harness.scoring import compute_reliability
+from harness.memory import HarnessMemory
 
 @dataclass
 class ExecutionResult:
@@ -56,6 +57,7 @@ class Orchestrator:
         self._semantic_evaluator: Optional[SemanticEvaluator] = None
         self._rule_validator: Optional[RuleBasedValidator] = None
         self._critic_evaluator: Optional[CriticEvaluator] = None
+        self.memory = HarnessMemory(db_path=self.db_manager.db_path)
 
         # Preload semantic model once during orchestrator startup
         warmup()
@@ -155,6 +157,14 @@ class Orchestrator:
         final_overall_score = 0.0
         final_passed = False
         final_issues: List[str] = []
+        last_suggestions = []
+        last_patterns = []
+        last_response = initial_response
+        first_score = 0.0
+        used_memory_in_prompt = False
+        last_memory_strategies = []
+        last_score = 0.0
+        last_issues_count = 0
 
         while True:
             semantic_score = None
@@ -207,7 +217,11 @@ class Orchestrator:
                 )
                 critic_score = critic_result.score
                 issues.extend(critic_result.issues)
-                suggestions.extend(critic_result.metadata.get("suggestions", []))
+                for s in critic_result.metadata.get("suggestions", []):
+                    if isinstance(s, dict):
+                        suggestions.append(s.get("description", str(s)))
+                    else:
+                        suggestions.append(str(s))
                 critic_feedback = critic_result.metadata.get("raw_response", "")
 
             # STEP 5: Pass scores into compute_reliability()
@@ -225,6 +239,8 @@ class Orchestrator:
             final_rule_score = rule_score
             final_critic_score = critic_score
             final_overall_score = overall_score
+            if attempt == 1:
+                first_score = overall_score
             final_passed = passed
             final_issues = issues
 
@@ -232,7 +248,15 @@ class Orchestrator:
             # Retry conditions: Reliability score is below threshold AND at least one meaningful issue exists
             retry_triggered = not passed and len(issues) > 0 and retry_count < max_retries
 
+            # Detect negative transfer if memory was used
+            is_negative_transfer = False
+            if used_memory_in_prompt and attempt > 1:
+                if overall_score < last_score or len(issues) > last_issues_count:
+                    is_negative_transfer = True
+                    print(f"NEGATIVE TRANSFER DETECTED: Score dropped ({last_score} -> {overall_score}) or issues increased ({last_issues_count} -> {len(issues)})")
+
             # Log trace of attempt to evaluation_traces
+            import json
             self.db_manager.log_trace(
                 run_id=r_id,
                 query_id=q_id,
@@ -244,12 +268,24 @@ class Orchestrator:
                 overall_reliability=overall_score,
                 issues=issues,
                 retry_triggered=retry_triggered,
-                critic_feedback=critic_feedback
+                critic_feedback=critic_feedback,
+                memory_assisted=used_memory_in_prompt,
+                memory_strategies_json=json.dumps(last_memory_strategies) if used_memory_in_prompt else None,
+                negative_transfer=is_negative_transfer
             )
 
             rule_issues = rule_result.issues if "rule" in active_evaluators else []
             semantic_issues = semantic_result.issues if "semantic" in active_evaluators else []
             critic_issues = critic_result.issues if "critic" in active_evaluators else []
+            
+            rule_metadata = getattr(rule_result, "metadata", {}) if "rule" in active_evaluators else {}
+            critic_metadata = getattr(critic_result, "metadata", {}) if "critic" in active_evaluators else {}
+            
+            import os
+            current_patterns = self.memory.detect_failure_patterns(issues, rule_metadata, critic_metadata)
+            memory_strategies = []
+            if os.environ.get("DISABLE_MEMORY", "0") != "1":
+                memory_strategies = self.memory.search(current_patterns, limit=3)
 
             # STEP 6: If passed or maximum retries exhausted, exit the loop
             if passed or not retry_triggered:
@@ -264,6 +300,7 @@ class Orchestrator:
             
             if issues:
                 repair_prompt += "Optimize the response to satisfy ALL constraints simultaneously.\n\n"
+                used_memory_in_prompt = False
                 
                 if rule_issues:
                     repair_prompt += "Priority 1: Objective constraints (character limits, JSON validity, required fields)\n"
@@ -277,7 +314,15 @@ class Orchestrator:
                         repair_prompt += f"- {issue}\n"
                     repair_prompt += "\n"
                     
-                if critic_issues:
+                if memory_strategies:
+                    repair_prompt += "Priority 3: Past Successful Repair Strategies\n"
+                    repair_prompt += "PREVIOUS SUCCESSFUL REPAIRS\n"
+                    for idx, strat in enumerate(memory_strategies, 1):
+                        repair_prompt += f"{idx}. {strat['repair_strategy']}\n"
+                        repair_prompt += f"Success Rate: {int(strat['success_rate'] * 100)}%\n"
+                    repair_prompt += "You SHOULD reuse these strategies if applicable.\n\n"
+                    used_memory_in_prompt = True
+                elif critic_issues:
                     repair_prompt += "Priority 3: Style improvements\n"
                     for issue in critic_issues:
                         repair_prompt += f"- {issue}\n"
@@ -290,6 +335,13 @@ class Orchestrator:
                 repair_prompt += "\n"
                 
             repair_prompt += "Please regenerate a corrected response."
+
+            last_suggestions = suggestions
+            last_patterns = current_patterns
+            last_response = current_response
+            last_score = overall_score
+            last_issues_count = len(issues)
+            last_memory_strategies = memory_strategies if memory_strategies else []
 
             # Regenerate response using the repair prompt
             current_response = self.agent.generate(repair_prompt)
@@ -316,37 +368,15 @@ class Orchestrator:
         )
         # Store in evaluation memory foundation
         try:
-            from harness.memory import MemoryManager
-            mem_manager = MemoryManager(db_path=self.db_manager.db_path)
-            corrections = []
-            traces = self.db_manager.get_traces(r_id, q_id)
-            for t in traces:
-                if t.get("issues"):
-                    issues_list = []
-                    import json
-                    try:
-                        issues_str = t["issues"]
-                        if isinstance(issues_str, str):
-                            issues_list = json.loads(issues_str)
-                        else:
-                            issues_list = issues_str
-                    except Exception:
-                        pass
-                    for issue in issues_list:
-                        if issue not in corrections:
-                            corrections.append(f"Correction for: {issue}")
-            mem_manager.store_evaluation(
-                prompt=query,
-                response=current_response,
-                semantic_score=final_semantic_score,
-                rule_score=final_rule_score,
-                critic_score=final_critic_score,
-                overall_score=final_overall_score,
-                issues=final_issues,
-                corrections=corrections
-            )
-        except Exception:
-            pass
+            retry_occurred = attempt > 1
+            freeze_memory = os.environ.get("FREEZE_MEMORY", "0") == "1"
+            if harness_enabled and not freeze_memory and retry_occurred and final_passed and final_overall_score >= 0.80 and final_overall_score > first_score:
+                if last_patterns and last_suggestions:
+                    # Store suggestions from the previous attempt as successful strategies
+                    for strategy in last_suggestions:
+                        self.memory.store_repair(last_patterns, strategy, example_before=last_response, example_after=current_response)
+        except Exception as e:
+            print("Memory store error:", str(e))
 
         return ExecutionResult(
             query_id=q_id,

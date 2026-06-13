@@ -85,6 +85,12 @@ class DatabaseManager:
             """)
 
             # Table 3: evaluation_traces
+            try:
+                self._conn.execute("ALTER TABLE evaluation_traces ADD COLUMN memory_assisted INTEGER DEFAULT 0;")
+                self._conn.execute("ALTER TABLE evaluation_traces ADD COLUMN memory_strategies_json TEXT;")
+                self._conn.execute("ALTER TABLE evaluation_traces ADD COLUMN negative_transfer INTEGER DEFAULT 0;")
+            except sqlite3.OperationalError:
+                pass
             self._conn.execute("""
                 CREATE TABLE IF NOT EXISTS evaluation_traces (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,7 +104,10 @@ class DatabaseManager:
                     overall_reliability REAL,
                     issues TEXT,
                     retry_triggered INTEGER,
-                    critic_feedback TEXT
+                    critic_feedback TEXT,
+                    memory_assisted INTEGER DEFAULT 0,
+                    memory_strategies_json TEXT,
+                    negative_transfer INTEGER DEFAULT 0
                 );
             """)
             try:
@@ -231,7 +240,10 @@ class DatabaseManager:
         overall_reliability: float,
         issues: List[str],
         retry_triggered: bool,
-        critic_feedback: Optional[str] = None
+        critic_feedback: Optional[str] = None,
+        memory_assisted: bool = False,
+        memory_strategies_json: Optional[str] = None,
+        negative_transfer: bool = False
     ) -> None:
         """
         Logs a single trace point inside a retry/correction attempt loop.
@@ -254,30 +266,31 @@ class DatabaseManager:
 
         assert self._conn is not None
 
-        issues_json = json.dumps(issues)
-        query = """
-            INSERT INTO evaluation_traces (
-                run_id, query_id, attempt, raw_response, semantic_score,
-                rule_score, critic_score, overall_reliability, issues, retry_triggered, critic_feedback
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
         with self._conn:
-            self._conn.execute(
-                query,
-                (
-                    run_id,
-                    query_id,
-                    attempt,
-                    raw_response,
-                    semantic_score,
-                    rule_score,
-                    critic_score,
-                    overall_reliability,
-                    issues_json,
-                    1 if retry_triggered else 0,
-                    critic_feedback
-                )
-            )
+            self._conn.execute("""
+                INSERT INTO evaluation_traces (
+                    run_id, query_id, attempt, raw_response,
+                    semantic_score, rule_score, critic_score,
+                    overall_reliability, issues, retry_triggered, critic_feedback, 
+                    memory_assisted, memory_strategies_json, negative_transfer
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                run_id,
+                query_id,
+                attempt,
+                raw_response,
+                semantic_score,
+                rule_score,
+                critic_score,
+                overall_reliability,
+                json.dumps(issues) if isinstance(issues, list) else issues,
+                int(retry_triggered),
+                critic_feedback,
+                int(memory_assisted),
+                memory_strategies_json,
+                int(negative_transfer)
+            ))
 
     def get_run(self, run_id: str) -> Optional[Dict[str, Any]]:
         """

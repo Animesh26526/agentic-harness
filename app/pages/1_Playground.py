@@ -181,6 +181,31 @@ st.sidebar.markdown(
     """
 )
 
+st.sidebar.markdown("---")
+st.sidebar.header("🧠 Harness Memory")
+try:
+    from harness.memory import HarnessMemory
+    mem = HarnessMemory()
+    stats = mem.get_stats()
+    
+    st.sidebar.write(f"**Entries:** {stats['total_entries']}")
+    
+    st.sidebar.markdown("**Most Common Failures:**")
+    if stats['most_common_failures']:
+        for f in stats['most_common_failures']:
+            st.sidebar.markdown(f"• {f['type'].replace('_', ' ').title()} ({f['count']})")
+    else:
+        st.sidebar.markdown("*(No failures recorded yet)*")
+        
+    st.sidebar.markdown("**Top Strategies:**")
+    if stats['top_strategies']:
+        for s in stats['top_strategies']:
+            st.sidebar.markdown(f"✓ {s['strategy']}<br><span style='color:#10B981; font-size: 0.8rem;'>Success: {int(s['success_rate']*100)}%</span>", unsafe_allow_html=True)
+    else:
+        st.sidebar.markdown("*(No strategies learned yet)*")
+except Exception as e:
+    st.sidebar.error(f"Error loading memory: {str(e)}")
+
 # Initialize session state variables for presets and evaluations
 if 'user_query' not in st.session_state:
     st.session_state.user_query = ""
@@ -965,6 +990,19 @@ if submit:
 
                                 with st.expander("🔍 Show Critic Evaluator Rationale (Raw LLM Grade)", expanded=False):
                                     st.text_area("Raw Critic Critique JSON", value=trace["critic_feedback"], height=120, disabled=True, key=f"critic_feedback_{idx}")
+
+                            if trace.get("memory_assisted") == 1 and trace.get("memory_strategies_json"):
+                                st.markdown("#### 🧠 MEMORY SEARCH")
+                                try:
+                                    strats = json.loads(trace["memory_strategies_json"])
+                                    if strats:
+                                        st.markdown("**Retrieved Strategies:**")
+                                        for s_idx, strat in enumerate(strats, 1):
+                                            st.markdown(f"**{s_idx}.** {strat.get('repair_strategy', strat)}")
+                                            if isinstance(strat, dict) and 'success_rate' in strat:
+                                                st.markdown(f"*Success: {int(strat['success_rate']*100)}%*")
+                                except:
+                                    pass
 
                             if trace.get("retry_triggered") == 1:
                                 st.write("🔄 Retry loop triggered with compiler feedback.")

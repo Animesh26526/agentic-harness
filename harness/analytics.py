@@ -319,3 +319,83 @@ def get_harness_effectiveness(run_id: str, db_path: str = "harness_metrics.db") 
         }
     finally:
         conn.close()
+
+def get_memory_stats(run_id: str, db_path: str = "harness_metrics.db") -> Dict[str, Any]:
+    """Computes memory system analytics for a specific run."""
+    conn = _get_connection(db_path)
+    cursor = conn.cursor()
+    try:
+        # Total memory assisted attempts
+        cursor.execute("SELECT COUNT(*) as c FROM evaluation_traces WHERE run_id = ? AND memory_assisted = 1", (run_id,))
+        assisted_retries = cursor.fetchone()["c"]
+        
+        # Memory assisted success
+        cursor.execute('''
+            SELECT COUNT(*) as c FROM evaluation_traces t
+            JOIN run_logs r ON t.query_id = r.query_id AND t.run_id = r.run_id
+            WHERE t.run_id = ? AND t.memory_assisted = 1 AND r.status = 'SUCCESS'
+        ''', (run_id,))
+        assisted_success = cursor.fetchone()["c"]
+        
+        # Total queries in run
+        cursor.execute("SELECT COUNT(*) as c FROM run_logs WHERE run_id = ?", (run_id,))
+        total_queries = cursor.fetchone()["c"]
+        
+        # Reliability Improvement: from first score to final score where memory_assisted = 1
+        cursor.execute('''
+            SELECT AVG(r.overall_reliability - t.overall_reliability) as diff
+            FROM run_logs r
+            JOIN evaluation_traces t ON r.query_id = t.query_id AND r.run_id = t.run_id
+            WHERE t.run_id = ? AND t.memory_assisted = 1 AND t.attempt = 1
+        ''', (run_id,))
+        # Wait, attempt=1 is never memory assisted. The attempt that IS memory assisted is attempt=2+.
+        # The reliability improvement of the *final* result compared to the *attempt prior* to memory assistance.
+        # Let's simplify: final_reliability - reliability at attempt 1 for queries that ever used memory.
+        pass
+        
+        cursor.execute('''
+            SELECT AVG(r.overall_reliability - t1.overall_reliability) as diff
+            FROM run_logs r
+            JOIN evaluation_traces t1 ON r.query_id = t1.query_id AND r.run_id = t1.run_id AND t1.attempt = 1
+            WHERE r.run_id = ? AND EXISTS (
+                SELECT 1 FROM evaluation_traces tm WHERE tm.query_id = r.query_id AND tm.run_id = r.run_id AND tm.memory_assisted = 1
+            )
+        ''', (run_id,))
+        
+        row = cursor.fetchone()
+        avg_improvement = row["diff"] if row and row["diff"] is not None else 0.0
+
+        # Memory Retrievals
+        cursor.execute("SELECT COUNT(*) as c FROM evaluation_traces WHERE run_id = ? AND memory_strategies_json IS NOT NULL AND memory_strategies_json != '[]'", (run_id,))
+        memory_retrievals = cursor.fetchone()["c"]
+
+        # Negative Transfer Rate
+        cursor.execute("SELECT COUNT(*) as c FROM evaluation_traces WHERE run_id = ? AND negative_transfer = 1", (run_id,))
+        negative_transfers = cursor.fetchone()["c"]
+        negative_transfer_rate = float(negative_transfers) / assisted_retries if assisted_retries else 0.0
+
+        # Challenge Success Rate
+        cursor.execute("SELECT COUNT(*) as c, SUM(CASE WHEN status='SUCCESS' THEN 1 ELSE 0 END) as passed FROM run_logs WHERE run_id = ?", (run_id,))
+        challenge_row = cursor.fetchone()
+        challenge_success_rate = float(challenge_row["passed"]) / challenge_row["c"] if challenge_row and challenge_row["c"] > 0 else 0.0
+
+        # Average Retry Reduction
+        # Wait, if we don't have Memory OFF, we can just say N/A or compute it against a baseline later.
+        
+        from harness.memory import HarnessMemory
+        mem = HarnessMemory(db_path=db_path)
+        stats = mem.get_stats()
+        
+        return {
+            "memory_retrievals": memory_retrievals,
+            "memory_assisted_retries": assisted_retries,
+            "memory_usage_rate": float(assisted_retries) / total_queries if total_queries else 0.0,
+            "memory_assisted_successes": assisted_success,
+            "memory_assisted_success_rate": float(assisted_success) / assisted_retries if assisted_retries else 0.0,
+            "avg_reliability_improvement": float(avg_improvement),
+            "negative_transfer_rate": negative_transfer_rate,
+            "challenge_success_rate": challenge_success_rate,
+            "top_learned_strategies": stats["top_strategies"]
+        }
+    finally:
+        conn.close()
