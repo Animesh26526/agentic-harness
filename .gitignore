@@ -74,3 +74,15 @@ active/
 *.db
 models/
 reports/*.json
+
+# Trial scripts and design specs
+architecture_and_design.md
+benchmark_and_evaluation_design.md
+final_v1_design_spec.md
+production_readiness_review.md
+fix_benchmark.py
+gemini_test.py
+scratch.py
+test_db.py
+update_benchmark.py
+test_streamlit_smoke.py
