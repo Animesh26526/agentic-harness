@@ -1,0 +1,196 @@
+[
+  {
+    "query_id": "challenge_a1",
+    "category": "constraint_following",
+    "description": "Category A: Constraint Stress Test (Under 50 chars + severe forbidden keywords)",
+    "input": "Describe water. Answer must be under 50 characters and must not contain the words 'liquid', 'h2o', 'wet', 'drink', 'water', 'clear'.",
+    "expected_output": "Transparent fluid essential for life.",
+    "evaluation_config": {
+      "forbidden_keywords": [
+        "liquid",
+        "h2o",
+        "wet",
+        "drink",
+        "water",
+        "clear"
+      ],
+      "max_length": 50
+    }
+  },
+  {
+    "query_id": "challenge_a2",
+    "category": "constraint_following",
+    "description": "Category A: Constraint Stress Test (Contradictory instructions)",
+    "input": "Write a short reply. It must be at least 10 words, but the total character limit is under 20 characters.",
+    "expected_output": "a b c d e f g h i j",
+    "evaluation_config": {
+      "max_length": 20,
+      "min_words": 10
+    }
+  },
+  {
+    "query_id": "challenge_b1",
+    "category": "structured_json",
+    "description": "Category B: Structured Output Test (Nested JSON object schema check)",
+    "input": "Generate a nested JSON payload representing a library branch. It must contain: 'branch' (string), 'location' (object with 'city' string and 'zip' integer), and 'established' (integer). Do not include markdown blocks.",
+    "expected_output": "{\"branch\": \"Central\", \"location\": {\"city\": \"Boston\", \"zip\": 2108}, \"established\": 1980}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "branch",
+        "location",
+        "location.city",
+        "location.zip",
+        "established"
+      ],
+      "field_types": {
+        "branch": "string",
+        "location": "object",
+        "location.city": "string",
+        "location.zip": "integer",
+        "established": "integer"
+      },
+      "forbidden_keywords": [
+        "```"
+      ]
+    }
+  },
+  {
+    "query_id": "challenge_b2",
+    "category": "structured_json",
+    "description": "Category B: Structured Output Test (Array field type constraint)",
+    "input": "Return a JSON object containing a key 'scores' mapping to a JSON array of integers.",
+    "expected_output": "{\"scores\": [90, 85, 88]}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "scores"
+      ],
+      "field_types": {
+        "scores": "array:integer"
+      }
+    }
+  },
+  {
+    "query_id": "challenge_c1",
+    "category": "factual_qa",
+    "description": "Category C: Hallucination Trap (Fictional concept check)",
+    "input": "Explain the main functions of the flibbertigibbet engine in quantum computing.",
+    "expected_output": "There is no flibbertigibbet engine in quantum computing.",
+    "evaluation_config": {
+      "reference_text": "There is no such thing as a flibbertigibbet engine in quantum computing. It is a completely made-up concept."
+    }
+  },
+  {
+    "query_id": "challenge_c2",
+    "category": "factual_qa",
+    "description": "Category C: Hallucination Trap (Future/unknown fact)",
+    "input": "Which country won the 2026 FIFA World Cup?",
+    "expected_output": "The 2026 FIFA World Cup has not concluded yet, so the winner is unknown.",
+    "evaluation_config": {
+      "reference_text": "The 2026 FIFA World Cup has not happened or concluded yet, so the winner is unknown."
+    }
+  },
+  {
+    "query_id": "challenge_d1",
+    "category": "structured_json",
+    "description": "Category D: Deliberate Failure Case (Produces invalid JSON format)",
+    "input": "Output a response that starts with a curly brace '{' and contains 'name: Bob' but is deliberately missing all double quotes, colons, and the closing brace.",
+    "expected_output": "{name Bob",
+    "evaluation_config": {
+      "validate_json": "invalid",
+      "required_fields": [
+        "name"
+      ],
+      "forbidden_keywords": [
+        "\"",
+        ":",
+        "}"
+      ]
+    }
+  },
+  {
+    "query_id": "challenge_d2",
+    "category": "constraint_following",
+    "description": "Category D: Deliberate Failure Case (Produces constraint violation)",
+    "input": "Respond with the word 'EXCELLENT' and do not respect any length limit of 5 characters.",
+    "expected_output": "EXCELLENT",
+    "evaluation_config": {
+      "min_length": 6
+    }
+  },
+  {
+    "query_id": "challenge_e1",
+    "category": "structured_json",
+    "description": "Category E: Already Correct Response (Simple JSON request)",
+    "input": "Output a valid JSON containing 'hello' set to 'world'. Do not output any conversational text.",
+    "expected_output": "{\"hello\": \"world\"}",
+    "evaluation_config": {
+      "validate_json": true,
+      "required_fields": [
+        "hello"
+      ],
+      "field_types": {
+        "hello": "string"
+      },
+      "forbidden_keywords": [
+        "```"
+      ]
+    }
+  },
+  {
+    "query_id": "challenge_e2",
+    "category": "constraint_following",
+    "description": "Category E: Already Correct Response (Clear QA question with short limit)",
+    "input": "What is the capital of Germany? Keep the answer under 20 characters.",
+    "expected_output": "Berlin",
+    "evaluation_config": {
+      "max_length": 20,
+      "reference_text": "Berlin"
+    }
+  },
+  {
+    "query_id": "challenge_boundary_exact",
+    "category": "constraint_following",
+    "description": "Category A: Character Limit Boundary Test (Exactly on boundary - 20 chars)",
+    "input": "Write exactly 20 characters.",
+    "expected_output": "12345678901234567890",
+    "evaluation_config": {
+      "min_length": 20,
+      "max_length": 20
+    }
+  },
+  {
+    "query_id": "challenge_boundary_over1",
+    "category": "constraint_following",
+    "description": "Category A: Character Limit Boundary Test (1 character over limit - 21 chars)",
+    "input": "Write exactly 21 characters.",
+    "expected_output": "123456789012345678901",
+    "evaluation_config": {
+      "min_length": 21,
+      "max_length": 21
+    }
+  },
+  {
+    "query_id": "challenge_boundary_over2",
+    "category": "constraint_following",
+    "description": "Category A: Character Limit Boundary Test (2 characters over limit - 22 chars)",
+    "input": "Write exactly 22 characters.",
+    "expected_output": "1234567890123456789012",
+    "evaluation_config": {
+      "min_length": 22,
+      "max_length": 22
+    }
+  },
+  {
+    "query_id": "challenge_boundary_over5",
+    "category": "constraint_following",
+    "description": "Category A: Character Limit Boundary Test (5 characters over limit - 25 chars)",
+    "input": "Write exactly 25 characters.",
+    "expected_output": "1234567890123456789012345",
+    "evaluation_config": {
+      "min_length": 25,
+      "max_length": 25
+    }
+  }
+]

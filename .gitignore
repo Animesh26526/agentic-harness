@@ -1,0 +1,88 @@
+# Byte-compiled / optimized / DLL support
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nosexy/
+.nosetestsrc/
+.pytest_cache/
+.cache/
+.mypy_cache/
+.pyre/
+.pytype/
+tomorrow.log
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.run/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environments
+.env
+.venv
+venv/
+ENV/
+env/
+active/
+
+# Streamlit
+# Keep theme config, but ignore secrets and local credentials
+.streamlit/secrets.toml
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local databases, model caches, and generated test reports
+*.db
+models/
+reports/*.json
+
+# Trial scripts and design specs
+architecture_and_design.md
+benchmark_and_evaluation_design.md
+final_v1_design_spec.md
+production_readiness_review.md
+fix_benchmark.py
+gemini_test.py
+scratch.py
+test_db.py
+update_benchmark.py
+test_streamlit_smoke.py
