@@ -2,6 +2,8 @@ import sqlite3
 import json
 from typing import Dict, Any, List
 
+from harness.config import Config
+
 def _get_connection(db_path: str) -> sqlite3.Connection:
     """Helper to open connection and set row factory."""
     conn = sqlite3.connect(db_path)

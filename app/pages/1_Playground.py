@@ -222,7 +222,7 @@ if 'eval_config' not in st.session_state:
     st.session_state.eval_config = {}
 
 # Presets Quick Buttons (Change 4 & Preset UX Improvements)
-st.write("")
+
 st.markdown("⚡ **Quick Demo Presets:** Click one to instantly load a test case:")
 try:
     with open(PROJECT_ROOT / "data" / "clean_benchmark_dataset.json", "r") as f:
@@ -548,7 +548,7 @@ with g_col_left:
     if not any([evaluation_config.get("max_length"), evaluation_config.get("min_length"), evaluation_config.get("max_words"), evaluation_config.get("min_words"), evaluation_config.get("validate_json"), evaluation_config.get("forbidden_keywords"), evaluation_config.get("required_fields")]):
         st.info("No objective constraints configured. Only factual/semantic coherence will be evaluated.")
         
-    st.write("")
+
     submit_col1, submit_col2 = st.columns([3, 1])
     def collapse_expanders():
         st.session_state.expand_json = False
@@ -718,7 +718,7 @@ if submit:
                     with c_col2:
                         st.metric("API Calls Executed", f"{calls_made}", help="Total model generations and critic evaluations executed.")
 
-                st.write("")
+
 
                 # LEFT vs RIGHT Outputs
                 out_col_left, out_col_right = st.columns(2)
@@ -734,7 +734,7 @@ if submit:
                         st.warning(result.final_response if result.final_response else "(Empty response)")
                 
                 # Below: Evaluation Breakdown (Change 2 & Change 3 tooltips)
-                st.write("")
+
                 st.markdown("### 📊 Evaluation Breakdown")
                 b_col1, b_col2, b_col3, b_col4 = st.columns(4)
                 
@@ -803,7 +803,7 @@ if submit:
                     st.markdown(explanation_html, unsafe_allow_html=True)
 
                 # Objective Rules Validation Debug Panel
-                st.write("")
+
                 st.markdown("### 🛡️ Deterministic Validation Report")
                 from harness.evaluators.rule_based import RuleBasedValidator
                 debug_validator = RuleBasedValidator()
@@ -922,7 +922,7 @@ if submit:
                 
                 # Below: Retry Trace Timeline (Change 2)
                 if harness_enabled and len(traces) > 0:
-                    st.write("")
+
                     st.markdown("### 🔄 Retry Trace Timeline")
                     
                     for idx, trace in enumerate(traces):
@@ -962,7 +962,7 @@ if submit:
                             
                             # Critic Transparency (Expose Critic Rationale/Reasoning)
                             if trace.get("critic_feedback"):
-                                st.write("")
+
                                 with st.expander("🔍 Show Critic Evaluator Rationale (Raw LLM Grade)", expanded=False):
                                     st.text_area("Raw Critic Critique JSON", value=trace["critic_feedback"], height=120, disabled=True, key=f"critic_feedback_{idx}")
 
@@ -970,7 +970,7 @@ if submit:
                                 st.write("🔄 Retry loop triggered with compiler feedback.")
 
                 # Below: Agentic Evaluation Narrative
-                st.write("")
+
                 st.markdown("### 💡 Agentic Evaluation Narrative")
                 if harness_enabled:
                     if result.retry_count > 0:
