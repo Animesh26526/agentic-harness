@@ -394,11 +394,11 @@ st.write("---")
 
 # 2. Load and compute KPI metrics
 is_placeholder = True
-usr_sr_off = 0.450
-usr_sr_on = 0.925
-usr_rel_off = 0.520
-usr_rel_on = 0.895
-usr_err_reduction = 0.864
+usr_sr_off = 0.750
+usr_sr_on = 0.900
+usr_rel_off = 0.812
+usr_rel_on = 0.945
+usr_err_reduction = 0.600
 usr_recovery = 0.875
 
 if run_off and run_on:
