@@ -127,6 +127,13 @@ class ModelProvider:
 
     def _generate_groq(self, model_id: str, prompt: str) -> str:
         """Call Groq API using requests."""
+        # Enforce pacing delay (6.6 seconds between requests for ~9 RPM)
+        last_request_time = float(os.getenv("GROQ_LAST_REQUEST_TIME", "0.0"))
+        elapsed = time.time() - last_request_time
+        if elapsed < 6.6:
+            time.sleep(6.6 - elapsed)
+        os.environ["GROQ_LAST_REQUEST_TIME"] = str(time.time())
+
         headers = {
             "Authorization": f"Bearer {self.groq_key}",
             "Content-Type": "application/json"

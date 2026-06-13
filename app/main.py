@@ -157,7 +157,6 @@ def get_latest_benchmark_runs(db_path="harness_metrics.db"):
         # Query completed benchmark runs starting with 'benchmark_' and exactly 40 samples
         cursor.execute(
             "SELECT run_id, harness_enabled, timestamp, total_samples FROM benchmark_runs "
-            "WHERE run_id LIKE 'benchmark_%' AND total_samples = 40 "
             "ORDER BY timestamp DESC"
         )
         rows = cursor.fetchall()

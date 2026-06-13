@@ -72,6 +72,7 @@ active/
 
 # Local databases, model caches, and generated test reports
 *.db
+!harness_metrics.db
 models/
 reports/*.json
 
