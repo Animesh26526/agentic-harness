@@ -210,7 +210,6 @@ def get_latest_completed_benchmark_pair(db_path):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT run_id, harness_enabled, timestamp, total_samples FROM benchmark_runs "
-            "WHERE run_id LIKE 'benchmark_%' AND total_samples = 40 "
             "ORDER BY timestamp DESC"
         )
         rows = cursor.fetchall()
