@@ -340,6 +340,9 @@ if user_off and user_on:
         from harness.analytics import get_harness_effectiveness
         eff = get_harness_effectiveness(user_on, db_path=db_path)
         
+        # Synchronize raw_pass_rate to identically match the OFF baseline Success Rate
+        eff['raw_pass_rate'] = usr_sr_off
+        
         st.write("")
         with st.expander("🛡️ Live Harness Effectiveness & Correctness Audit", expanded=True):
             st.markdown(f'''
